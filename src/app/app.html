@@ -1,0 +1,18 @@
+<div class="app-shell">
+  <header class="top-nav">
+    <a class="brand" routerLink="/">{{ title }}</a>
+
+    <nav>
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Home</a>
+      <a routerLink="/submit" routerLinkActive="active">Submit Complaint</a>
+      <a routerLink="/track" routerLinkActive="active">Track Complaint</a>
+      <a routerLink="/login" routerLinkActive="active">Login</a>
+    </nav>
+
+    <button *ngIf="isLoggedIn()" class="btn small" type="button" (click)="logout()">Logout</button>
+  </header>
+
+  <main class="content">
+    <router-outlet></router-outlet>
+  </main>
+</div>
