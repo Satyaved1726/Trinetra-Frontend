@@ -1,59 +1,103 @@
-# TrinetraFrontend
+# TRINETRA Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.2.
+Production-grade React + Vite frontend for the TRINETRA complaint management SaaS platform.
 
-## Development server
+## Stack
 
-To start a local development server, run:
+- React 19 + TypeScript
+- Vite
+- TailwindCSS v4
+- React Router
+- Axios service layer
+- Context API + store-backed auth session
+- JWT authentication with role-based route protection
 
-```bash
-ng serve
+## Key Features
+
+- Public complaint flows:
+  - Home
+  - Submit Complaint (anonymous or identity-included)
+  - Track Complaint
+- Authentication:
+  - Admin login
+  - Employee login
+- Admin workspace:
+  - Dashboard
+  - Complaint management
+  - Users management UI
+  - Analytics
+  - Settings
+- Employee workspace:
+  - Employee dashboard
+  - My complaints
+  - Submit complaint
+- Evidence upload:
+  - Multiple files
+  - Drag and drop
+  - Upload progress
+  - Previews for images/videos
+  - Supported formats: png, jpg, jpeg, mp4, pdf, docx
+  - Max size per file: 20MB
+
+## Project Structure
+
+```text
+src/
+  components/
+  layouts/
+  pages/
+  services/
+  hooks/
+  store/
+  utils/
+  types/
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Environment Variables
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Create `.env.local` from `.env.example`:
 
 ```bash
-ng generate component component-name
+VITE_API_URL=https://backend-url/api
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Production config template is included in `.env.production`.
+
+## Run Locally
 
 ```bash
-ng generate --help
+npm install
+npm run dev
 ```
 
-## Building
-
-To build the project run:
+## Build
 
 ```bash
-ng build
+npm run build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+## Authentication & Routing
 
-## Running unit tests
+- Admin routes: `/admin/*` (requires `ADMIN` role)
+- Employee routes: `/employee/*` (requires `EMPLOYEE` role)
+- Tokens are stored in browser storage and injected in API requests via Axios interceptors.
+- Unauthorized responses (401) trigger automatic session reset and login redirect.
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+## API Services
 
-```bash
-ng test
-```
+- `src/services/httpClient.ts` - Axios instance, interceptors, API error handling
+- `src/services/authService.ts` - Admin/employee auth APIs
+- `src/services/complaintService.ts` - Complaint submit/track/my-complaints/comment/evidence flows
+- `src/services/uploadService.ts` - Evidence upload + progress callbacks
+- `src/services/adminService.ts` - Admin complaint retrieval and status update flows
 
-## Running end-to-end tests
+## Deployment (Vercel)
 
-For end-to-end (e2e) testing, run:
+- Ensure `VITE_API_URL` is configured in Vercel environment variables.
+- Build command: `npm run build`
+- Output directory: `dist`
 
-```bash
-ng e2e
-```
+## Notes
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- GitHub push is not performed automatically by this environment.
+- If you want, I can next generate a commit plan and exact git commands for clean push.
