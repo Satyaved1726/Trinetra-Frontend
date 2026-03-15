@@ -147,8 +147,8 @@ export function SubmitComplaintPage() {
                   <CheckCircle2 className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Complaint Submitted</p>
-                  <h1 className="font-display text-3xl font-bold tracking-tight">Submission Received</h1>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Complaint Submitted Successfully</p>
+                  <h1 className="font-display text-3xl font-bold tracking-tight">Complaint Submitted Successfully</h1>
                 </div>
               </div>
 
@@ -166,7 +166,7 @@ export function SubmitComplaintPage() {
                   <div className="rounded-2xl border border-amber-400/50 bg-amber-500/10 p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Anonymous Token</p>
                     <p className="mt-2 text-2xl font-semibold tracking-wide">{submissionResult.anonymousToken ?? 'Not returned'}</p>
-                    <p className="mt-3 text-sm text-muted-foreground">Save this token. You will need it with your tracking ID to view an anonymous complaint later.</p>
+                    <p className="mt-3 text-sm text-muted-foreground">Save this token to track your complaint later.</p>
                   </div>
                 ) : null}
               </div>
