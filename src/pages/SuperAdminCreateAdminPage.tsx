@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ShieldPlus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { superAdminService } from '@/services/superAdminService';
 
 const createAdminSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters.'),
+  name: z.string().optional(),
   email: z.email('Enter a valid email address.'),
   password: z.string().min(8, 'Password must be at least 8 characters.')
 });
@@ -18,6 +19,7 @@ const createAdminSchema = z.object({
 type CreateAdminValues = z.infer<typeof createAdminSchema>;
 
 export function SuperAdminCreateAdminPage() {
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
@@ -30,12 +32,12 @@ export function SuperAdminCreateAdminPage() {
   const onSubmit = async (values: CreateAdminValues) => {
     try {
       await superAdminService.createAdmin({
-        name: values.name.trim(),
         email: values.email.trim(),
         password: values.password
       });
       toast.success('Admin created successfully.');
       reset({ name: '', email: '', password: '' });
+      navigate('/super-admin/admins');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to create admin.');
     }
@@ -51,7 +53,7 @@ export function SuperAdminCreateAdminPage() {
       <div className="max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-sm">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
+            <Label htmlFor="name">Full Name (optional)</Label>
             <Input id="name" {...register('name')} placeholder="Full name" />
             {errors.name ? <p className="text-sm text-destructive">{errors.name.message}</p> : null}
           </div>

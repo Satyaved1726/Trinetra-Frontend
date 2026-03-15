@@ -31,7 +31,7 @@ export function SuperAdminAdminsPage() {
     try {
       const updated = await superAdminService.disableAdmin(admin.id, active);
       setAdmins((current) => current.map((item) => (item.id === admin.id ? updated : item)));
-      toast.success(`${admin.name} ${active ? 'enabled' : 'disabled'}.`);
+      toast.success(`${admin.email} ${active ? 'enabled' : 'disabled'}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to update admin status.');
     }
@@ -41,7 +41,7 @@ export function SuperAdminAdminsPage() {
     try {
       await superAdminService.deleteAdmin(admin.id);
       setAdmins((current) => current.filter((item) => item.id !== admin.id));
-      toast.success(`${admin.name} deleted.`);
+      toast.success(`${admin.email} deleted.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to delete admin.');
     }
@@ -67,7 +67,7 @@ export function SuperAdminAdminsPage() {
               <div key={admin.id} className="flex flex-col gap-4 rounded-2xl border border-border bg-background p-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">{admin.name}</p>
+                    <p className="font-semibold">{admin.username ?? admin.email}</p>
                     <Badge>{admin.role}</Badge>
                     <Badge variant={admin.active ? 'success' : 'destructive'}>{admin.active ? 'Active' : 'Disabled'}</Badge>
                   </div>
