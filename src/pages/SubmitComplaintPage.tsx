@@ -1,21 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
-import {
-  AlertTriangle,
-  FileIcon,
-  FileText,
-  ImageIcon,
-  Lock,
-  ShieldCheck,
-  Upload,
-  Video
-} from 'lucide-react';
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { AlertTriangle, CheckCircle2, Lock, ShieldCheck, Upload } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { EvidenceDropzone, MAX_EVIDENCE_FILE_SIZE, isAcceptedEvidenceFile } from '@/components/EvidenceDropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,14 +17,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { complaintsApi } from '@/services/api';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
-const allowedMimeTypes = [
-  'image/png',
-  'image/jpg',
-  'image/jpeg',
-  'video/mp4',
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-];
 const categories = ['Harassment', 'Corruption', 'Discrimination', 'Workplace Abuse', 'Safety', 'Other'];
 const DRAFT_KEY = 'trinetra_submit_draft';
 
@@ -44,41 +28,24 @@ const submitComplaintSchema = z.object({
   evidenceFiles: z
     .array(z.instanceof(File))
     .max(8, 'You can upload up to 8 files at once.')
-    .refine(
-      (files) => files.every((file) => allowedMimeTypes.includes(file.type)),
-      'Allowed formats: png, jpg, jpeg, mp4, pdf, docx.'
-    )
+    .refine((files) => files.every((file) => isAcceptedEvidenceFile(file)), 'Allowed formats: jpg, png, jpeg, mp4, pdf, doc, docx, zip.')
     .refine((files) => files.every((file) => file.size <= MAX_FILE_SIZE), 'Each file must be 20MB or smaller.')
 });
 
 type SubmitComplaintFormValues = z.infer<typeof submitComplaintSchema>;
 
-function humanFileSize(size: number) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function previewForFile(file: File) {
-  if (file.type.startsWith('image/')) {
-    return { type: 'image' as const, icon: ImageIcon };
-  }
-  if (file.type.startsWith('video/')) {
-    return { type: 'video' as const, icon: Video };
-  }
-  if (file.type === 'application/pdf') {
-    return { type: 'pdf' as const, icon: FileText };
-  }
-
-  return { type: 'doc' as const, icon: FileIcon };
+interface SubmissionResult {
+  message?: string;
+  trackingId?: string;
+  anonymousToken?: string;
+  anonymous: boolean;
 }
 
 export function SubmitComplaintPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
-  const [dragging, setDragging] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
 
   const {
     register,
@@ -123,31 +90,6 @@ export function SubmitComplaintPage() {
     }
   }, [reset]);
 
-  const previews = useMemo(
-    () =>
-      selectedFiles.map((file) => ({
-        file,
-        previewUrl: file.type.startsWith('image/') || file.type.startsWith('video/') ? URL.createObjectURL(file) : null,
-        ...previewForFile(file)
-      })),
-    [selectedFiles]
-  );
-
-  useEffect(() => {
-    return () => {
-      previews.forEach((item) => {
-        if (item.previewUrl) {
-          URL.revokeObjectURL(item.previewUrl);
-        }
-      });
-    };
-  }, [previews]);
-
-  const appendFiles = (incoming: File[]) => {
-    const next = [...selectedFiles, ...incoming];
-    setValue('evidenceFiles', next, { shouldDirty: true, shouldValidate: true });
-  };
-
   const onSubmit = async (values: SubmitComplaintFormValues) => {
     const token = window.localStorage.getItem('token');
 
@@ -171,40 +113,78 @@ export function SubmitComplaintPage() {
     }
 
     try {
-      setUploadProgress({});
-      const response = await complaintsApi.submitComplaint(
-        {
-          title: values.title,
-          description: values.description,
-          category: values.category,
-          anonymous: values.anonymous,
-          evidenceFiles: values.evidenceFiles
-        },
-        {
-          onUploadProgress: (fileName: string, percent: number) => {
-            setUploadProgress((current) => ({ ...current, [fileName]: percent }));
-          }
-        }
-      );
+      const response = await complaintsApi.submitComplaint({
+        title: values.title,
+        description: values.description,
+        category: values.category,
+        anonymous: values.anonymous,
+        evidenceFiles: values.evidenceFiles
+      });
 
       toast.success(response.message ?? 'Complaint submitted successfully.');
 
-      if (response.trackingId) {
-        toast.info(`Tracking ID: ${response.trackingId}`, { duration: 9000 });
-      }
-
-      if (response.anonymousToken && values.anonymous) {
-        toast.info(`Anonymous Token: ${response.anonymousToken}. Save this token to track your complaint later.`, {
-          duration: 12000
-        });
-      }
+      setSubmissionResult({
+        message: response.message,
+        trackingId: response.trackingId,
+        anonymousToken: response.anonymousToken,
+        anonymous: values.anonymous
+      });
 
       reset({ title: '', description: '', category: categories[0], anonymous: true, evidenceFiles: [] });
-      setUploadProgress({});
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to submit complaint right now.');
     }
   };
+
+  if (submissionResult) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-background py-10 sm:py-14">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+            <div className="rounded-3xl border border-emerald-300/40 bg-card p-8 shadow-sm sm:p-10">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="rounded-2xl bg-emerald-500/15 p-3 text-emerald-600">
+                  <CheckCircle2 className="h-7 w-7" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Complaint Submitted</p>
+                  <h1 className="font-display text-3xl font-bold tracking-tight">Submission Received</h1>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground sm:text-base">
+                {submissionResult.message ?? 'Your complaint has been submitted successfully.'}
+              </p>
+
+              <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-muted/30 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Tracking ID</p>
+                  <p className="mt-2 text-2xl font-semibold tracking-wide">{submissionResult.trackingId ?? 'Pending'}</p>
+                </div>
+
+                {submissionResult.anonymous ? (
+                  <div className="rounded-2xl border border-amber-400/50 bg-amber-500/10 p-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Anonymous Token</p>
+                    <p className="mt-2 text-2xl font-semibold tracking-wide">{submissionResult.anonymousToken ?? 'Not returned'}</p>
+                    <p className="mt-3 text-sm text-muted-foreground">Save this token. You will need it with your tracking ID to view an anonymous complaint later.</p>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Button type="button" onClick={() => navigate('/track-complaint')}>
+                  Track Complaint
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setSubmissionResult(null)}>
+                  Submit Another Complaint
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background py-10 sm:py-14">
@@ -286,90 +266,13 @@ export function SubmitComplaintPage() {
 
                 <div className="space-y-3">
                   <Label>Evidence Upload (optional)</Label>
-                  <div
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      setDragging(true);
-                    }}
-                    onDragLeave={() => setDragging(false)}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      setDragging(false);
-                      appendFiles(Array.from(event.dataTransfer.files));
-                    }}
-                    className={`rounded-2xl border border-dashed p-5 text-center transition ${
-                      dragging ? 'border-primary bg-primary/5' : 'border-border bg-muted/30'
-                    }`}
-                  >
-                    <Upload className="mx-auto mb-2 h-5 w-5 text-muted-foreground" />
-                    <p className="text-sm font-medium">Drag and drop files here</p>
-                    <p className="mt-1 text-xs text-muted-foreground">png, jpg, jpeg, mp4, pdf, docx · max 20MB per file</p>
-                    <div className="mt-3">
-                      <Input
-                        type="file"
-                        multiple
-                        accept=".png,.jpg,.jpeg,.mp4,.pdf,.docx"
-                        onChange={(event: ChangeEvent<HTMLInputElement>) => appendFiles(Array.from(event.target.files ?? []))}
-                      />
-                    </div>
-                  </div>
-                  {errors.evidenceFiles ? <p className="text-sm text-destructive">{errors.evidenceFiles.message}</p> : null}
-
-                  {selectedFiles.length > 0 ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {previews.map((item, index) => (
-                        <div key={`${item.file.name}-${index}`} className="rounded-xl border border-border bg-background p-3">
-                          <div className="mb-2 flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <item.icon className="h-4 w-4 text-muted-foreground" />
-                              <p className="max-w-[180px] truncate text-sm font-medium">{item.file.name}</p>
-                            </div>
-                            <button
-                              type="button"
-                              className="text-xs text-destructive"
-                              onClick={() => {
-                                const next = [...selectedFiles];
-                                next.splice(index, 1);
-                                setValue('evidenceFiles', next, { shouldDirty: true, shouldValidate: true });
-                              }}
-                            >
-                              Remove
-                            </button>
-                          </div>
-
-                          {item.type === 'image' && item.previewUrl ? (
-                            <img src={item.previewUrl} alt={item.file.name} className="h-28 w-full rounded-lg object-cover" />
-                          ) : null}
-                          {item.type === 'video' && item.previewUrl ? (
-                            <video src={item.previewUrl} controls className="h-28 w-full rounded-lg object-cover" />
-                          ) : null}
-                          {item.type === 'pdf' ? (
-                            <div className="flex h-28 items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground">
-                              PDF preview available after upload
-                            </div>
-                          ) : null}
-                          {item.type === 'doc' ? (
-                            <div className="flex h-28 items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground">
-                              Document will be available for download
-                            </div>
-                          ) : null}
-
-                          <p className="mt-2 text-xs text-muted-foreground">{humanFileSize(item.file.size)}</p>
-                          {uploadProgress[item.file.name] ? (
-                            <div className="mt-2">
-                              <progress
-                                className="h-2 w-full overflow-hidden rounded-full"
-                                value={uploadProgress[item.file.name]}
-                                max={100}
-                                aria-label={`Upload progress for ${item.file.name}`}
-                              />
-                              <p className="mt-1 text-[11px] text-muted-foreground">{uploadProgress[item.file.name]}%</p>
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+                  <EvidenceDropzone
+                    files={selectedFiles}
+                    disabled={isSubmitting}
+                    error={errors.evidenceFiles?.message}
+                    onChange={(files) => setValue('evidenceFiles', files, { shouldDirty: true, shouldValidate: true })}
+                  />
+                  <p className="text-xs text-muted-foreground">Each file must be {MAX_EVIDENCE_FILE_SIZE / (1024 * 1024)}MB or smaller.</p>
                 </div>
 
                 <Button type="submit" disabled={isSubmitting} size="lg" className="w-full sm:w-auto">

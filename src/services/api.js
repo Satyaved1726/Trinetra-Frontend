@@ -2,6 +2,26 @@ import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://trinetra-backend-lzk9.onrender.com";
 
+async function readResponseData(response) {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+}
+
 const API = axios.create({
   baseURL: API_BASE,
   headers: {
@@ -71,22 +91,36 @@ export const complaintsApi = {
   async submitComplaint(payload) {
     const token = window.localStorage.getItem("token");
     const isAnonymous = Boolean(payload.anonymous);
+    const formData = new FormData();
+
+    formData.append(
+      "data",
+      new Blob(
+        [
+          JSON.stringify({
+            title: payload.title,
+            description: payload.description,
+            category: payload.category,
+            isAnonymous
+          })
+        ],
+        { type: "application/json" }
+      )
+    );
+
+    (payload.evidenceFiles || []).forEach((file) => {
+      formData.append("files", file);
+    });
 
     const response = await fetch(`${API_BASE}/api/complaints/submit`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         ...(!isAnonymous && token ? { Authorization: `Bearer ${token}` } : {})
       },
-      body: JSON.stringify({
-        title: payload.title,
-        description: payload.description,
-        category: payload.category,
-        isAnonymous
-      })
+      body: formData
     });
 
-    const data = await response.json();
+    const data = await readResponseData(response);
     if (!response.ok) {
       throw new Error(data?.message || "Unable to submit complaint.");
     }
@@ -105,7 +139,7 @@ export const complaintsApi = {
       })
     });
 
-    const data = await response.json();
+    const data = await readResponseData(response);
     if (!response.ok) {
       throw new Error(data?.message || "Unable to track complaint.");
     }
