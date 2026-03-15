@@ -16,6 +16,8 @@ export const adminService = {
     };
 
     return requestWithFallback<Complaint[]>([
+      () => apiClient.get('/api/admin/complaints', { params }),
+      () => apiClient.get('/api/complaints', { params }),
       () => apiClient.get('/admin/complaints', { params }),
       () => apiClient.get('/complaints/all', { params }),
       () => apiClient.get('/complaints', { params })
@@ -26,6 +28,8 @@ export const adminService = {
     const primaryId = complaint.id ?? complaint.trackingId;
 
     return requestWithFallback<Complaint>([
+      () => apiClient.patch(`/api/admin/complaints/${encodeURIComponent(String(primaryId))}/status`, { status }),
+      () => apiClient.put(`/api/complaints/${encodeURIComponent(String(primaryId))}/status`, { status }),
       () => apiClient.patch(`/admin/complaints/${encodeURIComponent(String(primaryId))}/status`, { status }),
       () => apiClient.put(`/complaints/${encodeURIComponent(String(primaryId))}/status`, { status }),
       () => apiClient.put(`/complaints/${encodeURIComponent(complaint.trackingId)}/status`, { status })
@@ -36,6 +40,7 @@ export const adminService = {
     const primaryId = complaint.id ?? complaint.trackingId;
 
     return requestWithFallback<Complaint>([
+      () => apiClient.patch(`/api/admin/complaints/${encodeURIComponent(String(primaryId))}/notes`, { notes }),
       () => apiClient.patch(`/admin/complaints/${encodeURIComponent(String(primaryId))}/notes`, { notes }),
       () => apiClient.patch(`/complaints/${encodeURIComponent(String(primaryId))}`, { investigationNotes: notes })
     ]);

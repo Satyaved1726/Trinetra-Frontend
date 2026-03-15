@@ -32,6 +32,28 @@ export const uploadService = {
 
       const result = await requestWithFallback<{ url: string }>([
         () =>
+          apiClient.post('/api/upload/evidence', formData, {
+            onUploadProgress: (event) => {
+              onProgress?.({
+                fileName: file.name,
+                loaded: event.loaded,
+                total: event.total ?? file.size,
+                percent: clampPercent(event.loaded, event.total ?? file.size)
+              });
+            }
+          }),
+        () =>
+          apiClient.post('/api/complaints/upload', formData, {
+            onUploadProgress: (event) => {
+              onProgress?.({
+                fileName: file.name,
+                loaded: event.loaded,
+                total: event.total ?? file.size,
+                percent: clampPercent(event.loaded, event.total ?? file.size)
+              });
+            }
+          }),
+        () =>
           apiClient.post('/upload/evidence', formData, {
             onUploadProgress: (event) => {
               onProgress?.({

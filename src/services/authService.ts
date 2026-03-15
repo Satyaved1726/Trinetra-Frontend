@@ -66,6 +66,7 @@ function toSession(response: AuthResponse, fallbackRole: UserRole) {
 export const authService = {
   async loginAdmin(payload: LoginCredentials) {
     const response = await requestWithFallback<AuthResponse>([
+      () => apiClient.post('/api/auth/login', payload),
       () => apiClient.post('/auth/admin/login', payload),
       () => apiClient.post('/auth/login', payload)
     ]);
@@ -75,6 +76,7 @@ export const authService = {
 
   async loginEmployee(payload: LoginCredentials) {
     const response = await requestWithFallback<AuthResponse>([
+      () => apiClient.post('/api/auth/login', payload),
       () => apiClient.post('/auth/employee/login', payload),
       () => apiClient.post('/auth/login', payload)
     ]);
@@ -83,11 +85,15 @@ export const authService = {
   },
 
   async registerAdmin(payload: RegisterPayload) {
-    return apiClient.post('/auth/register', payload);
+    return requestWithFallback([
+      () => apiClient.post('/api/auth/register', payload),
+      () => apiClient.post('/auth/register', payload)
+    ]);
   },
 
   async registerEmployee(payload: RegisterEmployeePayload) {
     return requestWithFallback([
+      () => apiClient.post('/api/auth/register', payload),
       () => apiClient.post('/auth/employee/register', payload),
       () => apiClient.post('/auth/register', payload)
     ]);

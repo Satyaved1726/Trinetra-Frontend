@@ -1,9 +1,10 @@
-import axios, { AxiosError, AxiosHeaders, type AxiosResponse } from 'axios';
+import axios, { AxiosError, type AxiosResponse } from 'axios';
+import API from '@/services/api';
 
-const TOKEN_KEY = 'trinetra_token';
+const TOKEN_KEY = 'token';
 const API_URL: string =
   (import.meta.env.VITE_API_URL as string) ||
-  'https://trinetra-backend-lzk9.onrender.com/api';
+  'https://trinetra-backend-lzk9.onrender.com';
 
 export class ApiError extends Error {
   constructor(
@@ -15,21 +16,21 @@ export class ApiError extends Error {
   }
 }
 
-export const apiClient = axios.create({
-  baseURL: API_URL,
-  timeout: 30000
-});
+export const apiClient = API;
+apiClient.defaults.timeout = 30000;
 
 export function getStoredToken() {
-  return window.localStorage.getItem(TOKEN_KEY);
+  return window.localStorage.getItem(TOKEN_KEY) ?? window.localStorage.getItem('trinetra_token');
 }
 
 export function setStoredToken(token: string) {
   window.localStorage.setItem(TOKEN_KEY, token);
+  window.localStorage.setItem('trinetra_token', token);
 }
 
 export function clearStoredToken() {
   window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem('trinetra_token');
 }
 
 function mapStatusMessage(status?: number) {
@@ -86,28 +87,6 @@ export async function requestWithFallback<T>(requests: Array<() => Promise<Axios
 
   throw toApiError(lastError);
 }
-
-apiClient.interceptors.request.use((config) => {
-  const headers = AxiosHeaders.from(config.headers);
-  const url = config.url ?? '';
-  const skipAuth = [
-    '/auth/admin/login',
-    '/auth/employee/login',
-    '/auth/login',
-    '/auth/register',
-    '/auth/employee/register'
-  ].some((path) => url.includes(path));
-
-  if (!skipAuth) {
-    const token = getStoredToken();
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
-    }
-  }
-
-  config.headers = headers;
-  return config;
-});
 
 apiClient.interceptors.response.use(
   (response) => response,
