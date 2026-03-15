@@ -53,7 +53,12 @@ export function LoginPage() {
       console.log('Login submit payload:', { email: payload.email });
       const session = await login(payload);
       toast.success('Signed in successfully.');
-      const nextPath = session.user.role === 'ADMIN' ? '/admin/dashboard' : '/employee/dashboard';
+      const nextPath =
+        session.user.role === 'SUPER_ADMIN'
+          ? '/super-admin/dashboard'
+          : session.user.role === 'ADMIN'
+            ? '/admin/dashboard'
+            : '/employee/dashboard';
       navigate(nextPath, { replace: true });
     } catch (error) {
       console.error('Login submit failed:', error);

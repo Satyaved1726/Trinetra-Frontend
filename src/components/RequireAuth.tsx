@@ -17,7 +17,12 @@ export function RequireAuth({ children, allowedRoles }: RequireAuthProps) {
   }
 
   if (allowedRoles && (!role || !allowedRoles.includes(role))) {
-    const redirectTarget = role === 'EMPLOYEE' ? '/employee/dashboard' : '/admin/dashboard';
+    const redirectTarget =
+      role === 'SUPER_ADMIN'
+        ? '/super-admin/dashboard'
+        : role === 'EMPLOYEE'
+          ? '/employee/dashboard'
+          : '/admin/dashboard';
     return <Navigate to={redirectTarget} replace />;
   }
 

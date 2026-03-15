@@ -8,7 +8,8 @@ import type { AuthSession, LoginCredentials, RegisterEmployeePayload, RegisterPa
 interface AuthContextValue {
   token: string | null;
   isAuthenticated: boolean;
-  role: 'ADMIN' | 'EMPLOYEE' | null;
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | null;
+  isSuperAdmin: boolean;
   isAdmin: boolean;
   isEmployee: boolean;
   login: (credentials: LoginCredentials) => Promise<AuthSession>;
@@ -29,7 +30,7 @@ function AuthLifecycleBridge({ children }: PropsWithChildren) {
     const handleUnauthorized = () => {
       store.logout();
       toast.error('Your session expired. Please sign in again.');
-      void navigate('/auth/admin-login', {
+      void navigate('/auth/login', {
         replace: true,
         state: { from: `${location.pathname}${location.search}` }
       });
@@ -57,6 +58,7 @@ export function useAuth(): AuthContextValue {
     token: store.token,
     role: store.role,
     isAuthenticated: store.isAuthenticated,
+    isSuperAdmin: store.isSuperAdmin,
     isAdmin: store.isAdmin,
     isEmployee: store.isEmployee,
     login: store.login,

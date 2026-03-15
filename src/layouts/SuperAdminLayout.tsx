@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { FilePlus2, FileSearch2, LayoutDashboard, LogOut, Menu, Shield, X } from 'lucide-react';
+import { BarChart3, LayoutDashboard, LogOut, Menu, Shield, ShieldPlus, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
@@ -7,14 +7,14 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/utils/cn';
 
-const employeeLinks = [
-  { to: '/employee/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/employee/my-complaints', icon: FileSearch2, label: 'My Complaints' },
-  { to: '/employee/submit-complaint', icon: FilePlus2, label: 'Submit Complaint' },
-  { to: '/employee/track-complaint', icon: FileSearch2, label: 'Track Complaint' }
+const superAdminLinks = [
+  { to: '/super-admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/super-admin/admins', icon: Users, label: 'Admins' },
+  { to: '/super-admin/create-admin', icon: ShieldPlus, label: 'Create Admin' },
+  { to: '/super-admin/system-analytics', icon: BarChart3, label: 'System Analytics' }
 ];
 
-export function EmployeeLayout() {
+export function SuperAdminLayout() {
   const { logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -22,7 +22,7 @@ export function EmployeeLayout() {
     <div className="flex min-h-screen bg-background">
       <aside className="hidden w-72 shrink-0 border-r border-border bg-card lg:flex lg:flex-col">
         <div className="flex h-16 items-center border-b border-border px-4">
-          <Link to="/employee/dashboard" className="flex items-center gap-3">
+          <Link to="/super-admin/dashboard" className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Shield className="h-4 w-4" />
             </div>
@@ -31,7 +31,7 @@ export function EmployeeLayout() {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {employeeLinks.map((link) => {
+          {superAdminLinks.map((link) => {
             const Icon = link.icon;
             return (
               <NavLink
@@ -64,7 +64,7 @@ export function EmployeeLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur lg:px-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Employee Portal</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Super Admin Portal</p>
           </div>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)}>
             <Menu className="h-5 w-5" />
@@ -86,7 +86,7 @@ export function EmployeeLayout() {
             className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border bg-card p-3 lg:hidden"
           >
             <div className="mb-2 flex h-12 items-center justify-between">
-              <Link to="/employee/dashboard" className="flex items-center gap-3" onClick={() => setMobileOpen(false)}>
+              <Link to="/super-admin/dashboard" className="flex items-center gap-3" onClick={() => setMobileOpen(false)}>
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
                   <Shield className="h-4 w-4" />
                 </div>
@@ -98,7 +98,7 @@ export function EmployeeLayout() {
             </div>
 
             <nav className="flex-1 space-y-1">
-              {employeeLinks.map((link) => {
+              {superAdminLinks.map((link) => {
                 const Icon = link.icon;
                 return (
                   <NavLink
@@ -120,11 +120,6 @@ export function EmployeeLayout() {
                 );
               })}
             </nav>
-
-            <Button variant="outline" className="w-full justify-start" onClick={logout}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign out
-            </Button>
           </motion.aside>
         </>
       ) : null}

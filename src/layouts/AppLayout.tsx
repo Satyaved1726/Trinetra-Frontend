@@ -19,6 +19,15 @@ export function AppLayout() {
   const { theme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const dashboardPath =
+    role === 'SUPER_ADMIN'
+      ? '/super-admin/dashboard'
+      : role === 'ADMIN'
+        ? '/admin/dashboard'
+        : '/employee/dashboard';
+  const submitComplaintPath =
+    role === 'EMPLOYEE' ? '/employee/submit-complaint' : isAuthenticated ? dashboardPath : '/auth/login';
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
@@ -36,10 +45,13 @@ export function AppLayout() {
 
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-1">
-              {navLinks.map((link) => (
+              {navLinks.map((link) => {
+                const target = link.label === 'Submit Complaint' ? submitComplaintPath : link.to;
+
+                return (
                 <NavLink
                   key={link.to}
-                  to={link.to}
+                  to={target}
                   end={link.end}
                   className={({ isActive }) =>
                     cn(
@@ -52,7 +64,8 @@ export function AppLayout() {
                 >
                   {link.label}
                 </NavLink>
-              ))}
+                );
+              })}
             </nav>
 
             {/* Actions */}
@@ -68,7 +81,7 @@ export function AppLayout() {
               </Button>
               {isAuthenticated ? (
                 <Button asChild size="sm">
-                  <NavLink to={role === 'EMPLOYEE' ? '/employee/dashboard' : '/admin/dashboard'}>
+                  <NavLink to={dashboardPath}>
                     Dashboard
                   </NavLink>
                 </Button>
@@ -106,10 +119,13 @@ export function AppLayout() {
               className="md:hidden overflow-hidden border-t border-border"
             >
               <div className="px-4 py-3 space-y-1">
-                {navLinks.map((link) => (
+                {navLinks.map((link) => {
+                  const target = link.label === 'Submit Complaint' ? submitComplaintPath : link.to;
+
+                  return (
                   <NavLink
                     key={link.to}
-                    to={link.to}
+                    to={target}
                     end={link.end}
                     onClick={() => setMenuOpen(false)}
                     className={({ isActive }) =>
@@ -123,7 +139,8 @@ export function AppLayout() {
                   >
                     {link.label}
                   </NavLink>
-                ))}
+                  );
+                })}
                 <div className="pt-2 flex flex-wrap gap-2 border-t border-border">
                   <Button
                     variant="ghost"
@@ -139,7 +156,7 @@ export function AppLayout() {
                   </Button>
                   {isAuthenticated ? (
                     <Button asChild size="sm" onClick={() => setMenuOpen(false)}>
-                      <NavLink to={role === 'EMPLOYEE' ? '/employee/dashboard' : '/admin/dashboard'}>
+                      <NavLink to={dashboardPath}>
                         Dashboard
                       </NavLink>
                     </Button>

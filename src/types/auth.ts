@@ -3,7 +3,7 @@ export interface LoginCredentials {
   password: string;
 }
 
-export type UserRole = 'ADMIN' | 'EMPLOYEE';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE';
 
 export interface AuthUser {
   id?: string;

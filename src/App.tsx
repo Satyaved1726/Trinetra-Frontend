@@ -6,6 +6,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import { AppLayout } from '@/layouts/AppLayout';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { EmployeeLayout } from '@/layouts/EmployeeLayout';
+import { SuperAdminLayout } from '@/layouts/SuperAdminLayout';
 
 const LandingPage = lazy(async () => {
   const module = await import('@/pages/LandingPage');
@@ -47,14 +48,9 @@ const AdminAnalyticsPage = lazy(async () => {
   return { default: module.AdminAnalyticsPage };
 });
 
-const AdminUsersPage = lazy(async () => {
-  const module = await import('@/pages/AdminUsersPage');
-  return { default: module.AdminUsersPage };
-});
-
-const AdminSettingsPage = lazy(async () => {
-  const module = await import('@/pages/AdminSettingsPage');
-  return { default: module.AdminSettingsPage };
+const AdminReportsPage = lazy(async () => {
+  const module = await import('@/pages/AdminReportsPage');
+  return { default: module.AdminReportsPage };
 });
 
 const EmployeeDashboardPage = lazy(async () => {
@@ -75,6 +71,26 @@ const EmployeeSubmitComplaintPage = lazy(async () => {
 const NotFoundPage = lazy(async () => {
   const module = await import('@/pages/NotFoundPage');
   return { default: module.NotFoundPage };
+});
+
+const SuperAdminDashboardPage = lazy(async () => {
+  const module = await import('@/pages/SuperAdminDashboardPage');
+  return { default: module.SuperAdminDashboardPage };
+});
+
+const SuperAdminAdminsPage = lazy(async () => {
+  const module = await import('@/pages/SuperAdminAdminsPage');
+  return { default: module.SuperAdminAdminsPage };
+});
+
+const SuperAdminCreateAdminPage = lazy(async () => {
+  const module = await import('@/pages/SuperAdminCreateAdminPage');
+  return { default: module.SuperAdminCreateAdminPage };
+});
+
+const SuperAdminSystemAnalyticsPage = lazy(async () => {
+  const module = await import('@/pages/SuperAdminSystemAnalyticsPage');
+  return { default: module.SuperAdminSystemAnalyticsPage };
 });
 
 function PageLoader() {
@@ -105,9 +121,18 @@ export default function App() {
             <Route path="register" element={<Navigate to="/auth/register" replace />} />
           </Route>
 
-          <Route element={<RequireAuth allowedRoles={['ADMIN', 'EMPLOYEE']} />}>
+          <Route element={<RequireAuth allowedRoles={['SUPER_ADMIN', 'ADMIN', 'EMPLOYEE']} />}>
             <Route element={<AppLayout />}>
-              <Route path="submit-complaint" element={<SubmitComplaintPage />} />
+              <Route path="submit-complaint" element={<Navigate to="/employee/submit-complaint" replace />} />
+            </Route>
+          </Route>
+
+          <Route element={<RequireAuth allowedRoles={['SUPER_ADMIN']} />}>
+            <Route element={<SuperAdminLayout />}>
+              <Route path="super-admin/dashboard" element={<SuperAdminDashboardPage />} />
+              <Route path="super-admin/admins" element={<SuperAdminAdminsPage />} />
+              <Route path="super-admin/create-admin" element={<SuperAdminCreateAdminPage />} />
+              <Route path="super-admin/system-analytics" element={<SuperAdminSystemAnalyticsPage />} />
             </Route>
           </Route>
 
@@ -116,9 +141,8 @@ export default function App() {
             <Route element={<DashboardLayout />}>
               <Route path="admin/dashboard" element={<AdminDashboardPage />} />
               <Route path="admin/complaints" element={<AdminComplaintsPage />} />
+              <Route path="admin/reports" element={<AdminReportsPage />} />
               <Route path="admin/analytics" element={<AdminAnalyticsPage />} />
-              <Route path="admin/users" element={<AdminUsersPage />} />
-              <Route path="admin/settings" element={<AdminSettingsPage />} />
             </Route>
           </Route>
 
@@ -128,6 +152,7 @@ export default function App() {
               <Route path="employee/dashboard" element={<EmployeeDashboardPage />} />
               <Route path="employee/my-complaints" element={<EmployeeMyComplaintsPage />} />
               <Route path="employee/submit-complaint" element={<EmployeeSubmitComplaintPage />} />
+              <Route path="employee/track-complaint" element={<TrackComplaintPage />} />
             </Route>
           </Route>
 

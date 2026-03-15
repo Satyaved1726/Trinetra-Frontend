@@ -9,10 +9,8 @@ import {
   Menu,
   Moon,
   Search,
-  Settings,
   Shield,
   Sun,
-  Users,
   X
 } from 'lucide-react';
 import { useState } from 'react';
@@ -26,9 +24,8 @@ import { cn } from '@/utils/cn';
 const sidebarLinks = [
   { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/complaints', icon: FileText, label: 'Complaints' },
-  { to: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/admin/users', icon: Users, label: 'Users' },
-  { to: '/admin/settings', icon: Settings, label: 'Settings' }
+  { to: '/admin/reports', icon: FileText, label: 'Reports' },
+  { to: '/admin/analytics', icon: BarChart3, label: 'Analytics' }
 ];
 
 export interface DashboardOutletContext {

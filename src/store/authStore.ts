@@ -50,6 +50,7 @@ interface AuthStoreValue {
 	user: AuthUser | null;
 	role: UserRole | null;
 	isAuthenticated: boolean;
+	isSuperAdmin: boolean;
 	isAdmin: boolean;
 	isEmployee: boolean;
 	login: (credentials: LoginCredentials) => Promise<AuthSession>;
@@ -71,6 +72,7 @@ export function AuthStoreProvider({ children }: PropsWithChildren) {
 			user: session?.user ?? null,
 			role: session?.user.role ?? null,
 			isAuthenticated: Boolean(session?.token),
+			isSuperAdmin: session?.user.role === 'SUPER_ADMIN',
 			isAdmin: session?.user.role === 'ADMIN',
 			isEmployee: session?.user.role === 'EMPLOYEE',
 			login: async (credentials) => {

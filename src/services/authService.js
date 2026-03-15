@@ -77,7 +77,14 @@ const inferRole = (response, token, fallbackRole) => {
     claims?.roles ??
     claims?.["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"];
 
+  if (Array.isArray(claimRole)) {
+    if (claimRole.some((item) => /super[_-]?admin/i.test(String(item)))) return "SUPER_ADMIN";
+    if (claimRole.some((item) => /admin/i.test(String(item)))) return "ADMIN";
+    if (claimRole.some((item) => /employee|user/i.test(String(item)))) return "EMPLOYEE";
+  }
+
   if (typeof claimRole === "string") {
+    if (/super[_-]?admin/i.test(claimRole)) return "SUPER_ADMIN";
     if (/admin/i.test(claimRole)) return "ADMIN";
     if (/employee|user/i.test(claimRole)) return "EMPLOYEE";
   }
@@ -98,7 +105,7 @@ const toSession = (response, fallbackRole) => {
     user: {
       id: response?.user?.id,
       name: response?.user?.name,
-      email: response?.user?.email ?? "",
+      email: response?.user?.email ?? response?.email ?? "",
       role
     }
   };
