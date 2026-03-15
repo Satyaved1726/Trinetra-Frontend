@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const employeeLoginSchema = z.object({
   email: z.email('Enter a valid email address.'),
-  password: z.string().min(6, 'Password must be at least 6 characters.')
+  password: z.string().min(8, 'Password must be at least 8 characters.')
 });
 
 type EmployeeLoginValues = z.infer<typeof employeeLoginSchema>;
@@ -32,11 +32,18 @@ export function EmployeeLoginPage() {
 
   const onSubmit = async (values: EmployeeLoginValues) => {
     try {
-      await loginEmployee(values);
+      const payload = {
+        email: values.email.trim(),
+        password: values.password
+      };
+
+      console.log('Employee login submit payload:', { email: payload.email });
+      await loginEmployee(payload);
       toast.success('Welcome back.');
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from ?? '/employee/dashboard', { replace: true });
     } catch (error) {
+      console.error('Employee login failed:', error);
       toast.error(error instanceof Error ? error.message : 'Unable to sign in.');
     }
   };

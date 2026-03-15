@@ -1,5 +1,7 @@
 import API from "./api";
 
+const API_BASE = import.meta.env.VITE_API_URL || "https://trinetra-backend-lzk9.onrender.com";
+
 export const registerUser = async (data) => {
   const response = await API.post("/api/auth/register", data);
   return response.data;
@@ -9,6 +11,41 @@ export const loginUser = async (data) => {
   const response = await API.post("/api/auth/login", data);
   return response.data;
 };
+
+export async function login(email, password) {
+  const response = await fetch(`${API_BASE}/api/auth/employee/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      email,
+      password
+    })
+  });
+
+  const data = await response.json();
+  console.log("Employee login response:", data);
+
+  if (!response.ok) {
+    throw new Error(data.message || "Login failed");
+  }
+
+  localStorage.setItem("token", data.token);
+  localStorage.setItem("userEmail", data.email ?? email);
+  localStorage.setItem("userRole", data.role ?? "EMPLOYEE");
+
+  return data;
+}
+
+export function logout() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("trinetra_token");
+  localStorage.removeItem("userEmail");
+  localStorage.removeItem("userRole");
+  localStorage.removeItem("trinetra_session");
+  window.location.href = "/auth/employee-login";
+}
 
 const parseJwtClaims = (token) => {
   try {
@@ -118,11 +155,7 @@ export const authService = {
 
   async loginEmployee(payload) {
     console.log("Employee login request payload:", { email: payload.email });
-    const response = await requestWithFallback([
-      () => loginUser(payload),
-      () => API.post("/auth/employee/login", payload),
-      () => API.post("/auth/login", payload)
-    ]);
+    const response = await login(payload.email, payload.password);
 
     console.log("Employee login response:", response);
 

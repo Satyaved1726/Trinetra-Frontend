@@ -1,11 +1,34 @@
 import axios from "axios";
 
+const API_BASE = import.meta.env.VITE_API_URL || "https://trinetra-backend-lzk9.onrender.com";
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: API_BASE,
   headers: {
     "Content-Type": "application/json"
   }
 });
+
+export async function apiRequest(endpoint, options = {}) {
+  const token = window.localStorage.getItem("token");
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {})
+    }
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Request failed");
+  }
+
+  return data;
+}
 
 API.interceptors.request.use((config) => {
   const token =

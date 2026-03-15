@@ -29,11 +29,15 @@ function parseStoredSession() {
 function persistSession(session: AuthSession | null) {
 	if (!session) {
 		window.localStorage.removeItem(SESSION_KEY);
+		window.localStorage.removeItem('userEmail');
+		window.localStorage.removeItem('userRole');
 		clearStoredToken();
 		return;
 	}
 
 	setStoredToken(session.token);
+	window.localStorage.setItem('userEmail', session.user.email);
+	window.localStorage.setItem('userRole', session.user.role);
 	window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
