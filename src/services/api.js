@@ -69,35 +69,48 @@ export const authApi = {
 
 export const complaintsApi = {
   async submitComplaint(payload) {
-    const files = payload?.evidenceFiles ?? [];
+    const token = window.localStorage.getItem("token");
+    const isAnonymous = Boolean(payload.anonymous);
 
-    if (files.length > 0) {
-      const formData = new FormData();
-      formData.append("title", payload.title);
-      formData.append("description", payload.description);
-      formData.append("category", payload.category);
-      formData.append("anonymous", String(Boolean(payload.anonymous)));
-      files.forEach((file) => formData.append("files", file));
-
-      const response = await API.post("/api/complaints", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-
-      return response.data;
-    }
-
-    const response = await API.post("/api/complaints", {
-      title: payload.title,
-      description: payload.description,
-      category: payload.category,
-      anonymous: Boolean(payload.anonymous)
+    const response = await fetch(`${API_BASE}/api/complaints/submit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(!isAnonymous && token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        title: payload.title,
+        description: payload.description,
+        category: payload.category,
+        isAnonymous
+      })
     });
 
-    return response.data;
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || "Unable to submit complaint.");
+    }
+
+    return data;
   },
-  async trackComplaint(trackingId) {
-    const response = await API.get(`/api/complaints/${encodeURIComponent(trackingId)}`);
-    return response.data;
+  async trackComplaint(trackingId, anonymousToken) {
+    const response = await fetch(`${API_BASE}/api/complaints/track`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        trackingId,
+        ...(anonymousToken ? { anonymousToken } : {})
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || "Unable to track complaint.");
+    }
+
+    return data;
   },
   async getComplaints() {
     const response = await API.get("/api/complaints");

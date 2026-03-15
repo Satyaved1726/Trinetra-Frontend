@@ -25,8 +25,7 @@ export function AppLayout() {
       : role === 'ADMIN'
         ? '/admin/dashboard'
         : '/employee/dashboard';
-  const submitComplaintPath =
-    role === 'EMPLOYEE' ? '/employee/submit-complaint' : isAuthenticated ? dashboardPath : '/auth/login';
+  const submitComplaintPath = '/submit-complaint';
 
   return (
     <div className="min-h-screen bg-background">

@@ -50,6 +50,7 @@ export interface SubmitComplaintPayload {
 export interface SubmitComplaintResponse {
   message?: string;
   trackingId?: string;
+  anonymousToken?: string;
 }
 
 export interface ComplaintStats {

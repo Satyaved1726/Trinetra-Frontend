@@ -76,7 +76,7 @@ function previewForFile(file: File) {
 export function SubmitComplaintPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isEmployee } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [dragging, setDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
@@ -100,6 +100,7 @@ export function SubmitComplaintPage() {
   });
 
   const anonymous = watch('anonymous');
+  const includeIdentity = !anonymous;
   const selectedFiles = watch('evidenceFiles');
 
   useEffect(() => {
@@ -148,7 +149,9 @@ export function SubmitComplaintPage() {
   };
 
   const onSubmit = async (values: SubmitComplaintFormValues) => {
-    if (!values.anonymous && !isEmployee) {
+    const token = window.localStorage.getItem('token');
+
+    if (!values.anonymous && (!isAuthenticated || !token)) {
       window.sessionStorage.setItem(
         DRAFT_KEY,
         JSON.stringify({
@@ -159,8 +162,8 @@ export function SubmitComplaintPage() {
         })
       );
 
-      toast.info('Identity-included submissions require employee login. Redirecting…');
-      navigate('/auth/employee-login', {
+      toast.info('Include Identity requires login. Redirecting…');
+      navigate('/auth/login', {
         replace: true,
         state: { from: location.pathname }
       });
@@ -188,6 +191,12 @@ export function SubmitComplaintPage() {
 
       if (response.trackingId) {
         toast.info(`Tracking ID: ${response.trackingId}`, { duration: 9000 });
+      }
+
+      if (response.anonymousToken && values.anonymous) {
+        toast.info(`Anonymous Token: ${response.anonymousToken}. Save this token to track your complaint later.`, {
+          duration: 12000
+        });
       }
 
       reset({ title: '', description: '', category: categories[0], anonymous: true, evidenceFiles: [] });
@@ -242,7 +251,7 @@ export function SubmitComplaintPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="block">Identity preference</Label>
+                    <Label className="block">Include Identity</Label>
                     <Controller
                       control={control}
                       name="anonymous"
@@ -256,14 +265,18 @@ export function SubmitComplaintPage() {
                         >
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <p className="text-sm font-medium">
-                              {field.value ? 'Submit Anonymously' : 'Identity Included'}
+                              {includeIdentity ? 'Include Identity' : 'Submit Anonymously'}
                             </p>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} id="anonymous" />
+                            <Switch
+                              checked={includeIdentity}
+                              onCheckedChange={(checked) => field.onChange(!checked)}
+                              id="anonymous"
+                            />
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {field.value
-                              ? 'Your identity is hidden from admins and investigation notes.'
-                              : 'Employee login is required for identity-included submissions.'}
+                            {includeIdentity
+                              ? 'Complaint is linked to your account. Login is required.'
+                              : 'Submit without identity and track using tracking ID + anonymous token.'}
                           </p>
                         </div>
                       )}

@@ -16,7 +16,8 @@ import type { Complaint } from '@/types/complaint';
 import { formatDate, formatStatus } from '@/utils/formatters';
 
 const trackingSchema = z.object({
-  trackingId: z.string().min(3, 'Enter a valid tracking ID.')
+  trackingId: z.string().min(3, 'Enter a valid tracking ID.'),
+  anonymousToken: z.string().optional()
 });
 
 type TrackingFormValues = z.infer<typeof trackingSchema>;
@@ -36,12 +37,12 @@ export function TrackComplaintPage() {
     formState: { errors, isSubmitting }
   } = useForm<TrackingFormValues>({
     resolver: zodResolver(trackingSchema),
-    defaultValues: { trackingId: '' }
+    defaultValues: { trackingId: '', anonymousToken: '' }
   });
 
-  const onSubmit = async ({ trackingId }: TrackingFormValues) => {
+  const onSubmit = async ({ trackingId, anonymousToken }: TrackingFormValues) => {
     try {
-      const response = await complaintsApi.trackComplaint(trackingId.trim());
+      const response = await complaintsApi.trackComplaint(trackingId.trim(), anonymousToken?.trim() || undefined);
       setComplaint(response);
       toast.success('Complaint found.');
     } catch (error) {
@@ -73,17 +74,28 @@ export function TrackComplaintPage() {
           {/* Search card */}
           <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm mb-6">
             <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="trackingId" className="sr-only">Tracking ID</Label>
-                <Input
-                  id="trackingId"
-                  placeholder="Enter your tracking ID (e.g. TRN-XXXXXX)"
-                  className="h-11"
-                  {...register('trackingId')}
-                />
-                {errors.trackingId && (
-                  <p className="text-sm text-destructive">{errors.trackingId.message}</p>
-                )}
+              <div className="flex-1 grid gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="trackingId" className="sr-only">Tracking ID</Label>
+                  <Input
+                    id="trackingId"
+                    placeholder="Tracking ID (e.g. CMP-12345678)"
+                    className="h-11"
+                    {...register('trackingId')}
+                  />
+                  {errors.trackingId && (
+                    <p className="text-sm text-destructive">{errors.trackingId.message}</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="anonymousToken" className="sr-only">Anonymous Token</Label>
+                  <Input
+                    id="anonymousToken"
+                    placeholder="Anonymous Token (optional)"
+                    className="h-11"
+                    {...register('anonymousToken')}
+                  />
+                </div>
               </div>
               <Button
                 type="submit"

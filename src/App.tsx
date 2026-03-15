@@ -112,6 +112,7 @@ export default function App() {
           {/* Public routes */}
           <Route element={<AppLayout />}>
             <Route index element={<LandingPage />} />
+            <Route path="submit-complaint" element={<SubmitComplaintPage />} />
             <Route path="track-complaint" element={<TrackComplaintPage />} />
             <Route path="auth/login" element={<LoginPage />} />
             <Route path="auth/register" element={<RegisterPage />} />
@@ -119,12 +120,6 @@ export default function App() {
             <Route path="auth/employee-login" element={<Navigate to="/auth/login" replace />} />
             <Route path="login" element={<Navigate to="/auth/login" replace />} />
             <Route path="register" element={<Navigate to="/auth/register" replace />} />
-          </Route>
-
-          <Route element={<RequireAuth allowedRoles={['SUPER_ADMIN', 'ADMIN', 'EMPLOYEE']} />}>
-            <Route element={<AppLayout />}>
-              <Route path="submit-complaint" element={<Navigate to="/employee/submit-complaint" replace />} />
-            </Route>
           </Route>
 
           <Route element={<RequireAuth allowedRoles={['SUPER_ADMIN']} />}>
