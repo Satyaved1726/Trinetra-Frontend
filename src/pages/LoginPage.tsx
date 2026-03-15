@@ -13,10 +13,24 @@ import { useAuth } from '@/hooks/useAuth';
 
 const loginSchema = z.object({
   email: z.email('Enter a valid email address.'),
-  password: z.string().min(6, 'Password must be at least 6 characters.')
+  password: z.string().min(8, 'Password must be at least 8 characters.')
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
+
+function getBackendMessage(error: unknown) {
+  if (typeof error === 'object' && error !== null) {
+    const response = (error as {
+      response?: { data?: { message?: string; error?: string; errors?: string[]; validationErrors?: Record<string, string> } };
+    }).response;
+    if (response?.data?.message) return response.data.message;
+    if (response?.data?.error) return response.data.error;
+    if (Array.isArray(response?.data?.errors) && response.data.errors.length > 0) return response.data.errors[0];
+    if (response?.data?.validationErrors) return Object.values(response.data.validationErrors).join(' ');
+  }
+
+  return error instanceof Error ? error.message : 'Login failed';
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -31,13 +45,20 @@ export function LoginPage() {
   });
 
   const onSubmit = async (values: LoginFormValues) => {
+    const payload = {
+      email: values.email.trim(),
+      password: values.password
+    };
+
     try {
-      await loginAdmin(values);
+      console.log('Login submit payload:', { email: payload.email });
+      await loginAdmin(payload);
       toast.success('Signed in successfully.');
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from ?? '/admin/dashboard', { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid credentials. Please try again.';
+      console.error('Login submit failed:', error);
+      const message = getBackendMessage(error);
       toast.error(message);
     }
   };

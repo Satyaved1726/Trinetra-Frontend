@@ -1,11 +1,13 @@
 import API from "./api";
 
-export const registerUser = (data) => {
-  return API.post("/api/auth/register", data);
+export const registerUser = async (data) => {
+  const response = await API.post("/api/auth/register", data);
+  return response.data;
 };
 
-export const loginUser = (data) => {
-  return API.post("/api/auth/login", data);
+export const loginUser = async (data) => {
+  const response = await API.post("/api/auth/login", data);
+  return response.data;
 };
 
 const parseJwtClaims = (token) => {
@@ -64,6 +66,15 @@ const toSession = (response, fallbackRole) => {
 const parseError = (error) => {
   if (error?.response?.data?.message) return String(error.response.data.message);
   if (error?.response?.data?.error) return String(error.response.data.error);
+  if (Array.isArray(error?.response?.data?.errors) && error.response.data.errors.length > 0) {
+    return String(error.response.data.errors[0]);
+  }
+  if (error?.response?.data?.validationErrors && typeof error.response.data.validationErrors === "object") {
+    const messages = Object.values(error.response.data.validationErrors).filter(Boolean);
+    if (messages.length > 0) {
+      return messages.join(" ");
+    }
+  }
   if (error?.message) return String(error.message);
   return "Request failed. Please try again.";
 };
@@ -73,8 +84,12 @@ const requestWithFallback = async (requests) => {
 
   for (const request of requests) {
     try {
-      const response = await request();
-      return response.data;
+      const result = await request();
+      if (result && typeof result === "object" && "data" in result) {
+        return result.data;
+      }
+
+      return result;
     } catch (error) {
       lastError = error;
       const status = error?.response?.status;
@@ -89,37 +104,60 @@ const requestWithFallback = async (requests) => {
 
 export const authService = {
   async loginAdmin(payload) {
+    console.log("Login request payload:", { email: payload.email });
     const response = await requestWithFallback([
       () => loginUser(payload),
       () => API.post("/auth/admin/login", payload),
       () => API.post("/auth/login", payload)
     ]);
 
+    console.log("Login response:", response);
+
     return toSession(response, "ADMIN");
   },
 
   async loginEmployee(payload) {
+    console.log("Employee login request payload:", { email: payload.email });
     const response = await requestWithFallback([
       () => loginUser(payload),
       () => API.post("/auth/employee/login", payload),
       () => API.post("/auth/login", payload)
     ]);
 
+    console.log("Employee login response:", response);
+
     return toSession(response, "EMPLOYEE");
   },
 
   async registerAdmin(payload) {
-    await requestWithFallback([
+    console.log("Register request payload:", { name: payload.name, email: payload.email });
+    const response = await requestWithFallback([
       () => registerUser(payload),
-      () => API.post("/auth/register", payload)
+      async () => {
+        const fallback = await API.post("/auth/register", payload);
+        return fallback.data;
+      }
     ]);
+
+    console.log("Register response:", response);
+    return response;
   },
 
   async registerEmployee(payload) {
-    await requestWithFallback([
+    console.log("Employee register request payload:", { name: payload.name, email: payload.email });
+    const response = await requestWithFallback([
       () => registerUser(payload),
-      () => API.post("/auth/employee/register", payload),
-      () => API.post("/auth/register", payload)
+      async () => {
+        const employeeResponse = await API.post("/auth/employee/register", payload);
+        return employeeResponse.data;
+      },
+      async () => {
+        const fallback = await API.post("/auth/register", payload);
+        return fallback.data;
+      }
     ]);
+
+    console.log("Employee register response:", response);
+    return response;
   }
 };

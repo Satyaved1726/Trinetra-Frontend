@@ -14,10 +14,24 @@ import { useAuth } from '@/hooks/useAuth';
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters.'),
   email: z.email('Enter a valid email address.'),
-  password: z.string().min(6, 'Password must be at least 6 characters.')
+  password: z.string().min(8, 'Password must be at least 8 characters.')
 });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
+
+function getBackendMessage(error: unknown) {
+  if (typeof error === 'object' && error !== null) {
+    const response = (error as {
+      response?: { data?: { message?: string; error?: string; errors?: string[]; validationErrors?: Record<string, string> } };
+    }).response;
+    if (response?.data?.message) return response.data.message;
+    if (response?.data?.error) return response.data.error;
+    if (Array.isArray(response?.data?.errors) && response.data.errors.length > 0) return response.data.errors[0];
+    if (response?.data?.validationErrors) return Object.values(response.data.validationErrors).join(' ');
+  }
+
+  return error instanceof Error ? error.message : 'Registration failed';
+}
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -31,12 +45,21 @@ export function RegisterPage() {
   });
 
   const onSubmit = async (values: RegisterFormValues) => {
+    const payload = {
+      name: values.name.trim(),
+      email: values.email.trim(),
+      password: values.password
+    };
+
     try {
-      await registerUser(values);
+      console.log('Register submit payload:', { name: payload.name, email: payload.email });
+      const response = await registerUser(payload);
+      console.log('Register submit response:', response);
       toast.success('Account created successfully. Please sign in.');
       void navigate('/auth/admin-login', { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Registration failed. Please try again.';
+      console.error('Register submit failed:', error);
+      const message = getBackendMessage(error);
       toast.error(message);
     }
   };

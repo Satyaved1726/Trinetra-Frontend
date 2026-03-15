@@ -19,6 +19,14 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error("API ERROR:", error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
+
 export const authApi = {
   async adminLogin(payload) {
     const response = await API.post("/api/auth/login", payload);
