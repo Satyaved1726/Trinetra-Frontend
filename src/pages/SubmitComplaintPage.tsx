@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
+import { uploadEvidence } from '@/services/evidenceUploadService';
 import { complaintsApi } from '@/services/api';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -113,12 +114,14 @@ export function SubmitComplaintPage() {
     }
 
     try {
+      const uploadedEvidence = values.evidenceFiles.length > 0 ? await uploadEvidence(values.evidenceFiles) : [];
+
       const response = await complaintsApi.submitComplaint({
         title: values.title,
         description: values.description,
         category: values.category,
         anonymous: values.anonymous,
-        evidenceFiles: values.evidenceFiles
+        evidenceFiles: uploadedEvidence
       });
 
       toast.success(response.message ?? 'Complaint submitted successfully.');

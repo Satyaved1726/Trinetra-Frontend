@@ -91,33 +91,20 @@ export const complaintsApi = {
   async submitComplaint(payload) {
     const token = window.localStorage.getItem("token");
     const isAnonymous = Boolean(payload.anonymous);
-    const formData = new FormData();
-
-    formData.append(
-      "data",
-      new Blob(
-        [
-          JSON.stringify({
-            title: payload.title,
-            description: payload.description,
-            category: payload.category,
-            isAnonymous
-          })
-        ],
-        { type: "application/json" }
-      )
-    );
-
-    (payload.evidenceFiles || []).forEach((file) => {
-      formData.append("files", file);
-    });
 
     const response = await fetch(`${API_BASE}/api/complaints/submit`, {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         ...(!isAnonymous && token ? { Authorization: `Bearer ${token}` } : {})
       },
-      body: formData
+      body: JSON.stringify({
+        title: payload.title,
+        description: payload.description,
+        category: payload.category,
+        isAnonymous,
+        evidenceFiles: payload.evidenceFiles || []
+      })
     });
 
     const data = await readResponseData(response);

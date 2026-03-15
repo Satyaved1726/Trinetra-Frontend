@@ -1,50 +1,31 @@
 import { apiClient, requestWithFallback } from '@/services/httpClient';
-import { uploadService } from '@/services/uploadService';
+import { uploadEvidence } from '@/services/evidenceUploadService';
 import type { Complaint, SubmitComplaintPayload, SubmitComplaintResponse } from '@/types/complaint';
 
-interface SubmitComplaintOptions {
-  onUploadProgress?: (fileName: string, percent: number) => void;
-}
-
 export const complaintService = {
-  async submitComplaint(payload: SubmitComplaintPayload, options?: SubmitComplaintOptions) {
-    const files = payload.evidenceFiles ?? (payload.evidenceFile ? [payload.evidenceFile] : []);
+  async submitComplaint(payload: SubmitComplaintPayload) {
+    const evidenceFiles = payload.evidenceFiles ?? [];
 
-    if (files.length > 0) {
-      const formData = new FormData();
-      formData.append('title', payload.title);
-      formData.append('description', payload.description);
-      formData.append('category', payload.category);
-      formData.append('anonymous', String(Boolean(payload.anonymous)));
-      files.forEach((file) => formData.append('files', file));
-
-      return requestWithFallback<SubmitComplaintResponse>([
-        () =>
-          apiClient.post('/api/complaints', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            onUploadProgress: (event) => {
-              const percent = event.total ? Math.round((event.loaded / event.total) * 100) : 0;
-              files.forEach((file) => options?.onUploadProgress?.(file.name, percent));
-            }
-          }),
-        () =>
-          apiClient.post('/complaints', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          })
-      ]);
+    if (evidenceFiles.some((file) => file instanceof File)) {
+      throw new Error('Evidence files must be uploaded first. Submit URL metadata only.');
     }
+
+    const evidenceMetadata = evidenceFiles as Array<{ url: string; type?: string }>;
 
     const requestBody = {
       title: payload.title,
       description: payload.description,
       category: payload.category,
-      anonymous: payload.anonymous
+      isAnonymous: payload.anonymous,
+      evidenceFiles: evidenceMetadata.map((file) => ({
+        url: file.url,
+        type: file.type
+      }))
     };
 
     return requestWithFallback<SubmitComplaintResponse>([
-      () => apiClient.post('/api/complaints', requestBody),
-      () => apiClient.post('/complaints', requestBody),
-      () => apiClient.post(payload.anonymous ? '/complaints/anonymous' : '/complaints/submit', requestBody)
+      () => apiClient.post('/api/complaints/submit', requestBody),
+      () => apiClient.post('/complaints/submit', requestBody)
     ]);
   },
 
@@ -72,7 +53,7 @@ export const complaintService = {
   },
 
   async uploadAdditionalEvidence(complaintId: string, files: File[]) {
-    const uploads = await uploadService.uploadEvidenceFiles(files);
+    const uploads = await uploadEvidence(files);
 
     await requestWithFallback([
       () => apiClient.post(`/api/complaints/${encodeURIComponent(complaintId)}/evidence`, { evidence: uploads }),

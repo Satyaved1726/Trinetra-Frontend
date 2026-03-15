@@ -43,7 +43,7 @@ export interface SubmitComplaintPayload {
   description: string;
   category: string;
   anonymous: boolean;
-  evidenceFiles?: File[];
+  evidenceFiles?: Array<File | { url: string; type?: string }>;
   evidenceFile?: File | null;
 }
 
