@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
 import { Lock, Shield } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -34,8 +34,7 @@ function getBackendMessage(error: unknown) {
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { loginAdmin } = useAuth();
+  const { login } = useAuth();
   const {
     register,
     handleSubmit,
@@ -52,10 +51,10 @@ export function LoginPage() {
 
     try {
       console.log('Login submit payload:', { email: payload.email });
-      await loginAdmin(payload);
+      const session = await login(payload);
       toast.success('Signed in successfully.');
-      const from = (location.state as { from?: string } | null)?.from;
-      navigate(from ?? '/admin/dashboard', { replace: true });
+      const nextPath = session.user.role === 'ADMIN' ? '/admin/dashboard' : '/employee/dashboard';
+      navigate(nextPath, { replace: true });
     } catch (error) {
       console.error('Login submit failed:', error);
       const message = getBackendMessage(error);
@@ -88,8 +87,8 @@ export function LoginPage() {
         {/* Card */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
           <div className="text-center mb-7">
-            <h1 className="font-display text-2xl font-bold text-white mb-2">Admin Sign In</h1>
-            <p className="text-slate-400 text-sm">Access your complaint management dashboard</p>
+            <h1 className="font-display text-2xl font-bold text-white mb-2">Sign In</h1>
+            <p className="text-slate-400 text-sm">Access the correct TRINETRA workspace based on your role</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
@@ -97,7 +96,7 @@ export function LoginPage() {
               <Label className="text-slate-300 text-sm">Email address</Label>
               <Input
                 type="email"
-                placeholder="admin@company.com"
+                placeholder="you@company.com"
                 {...register('email')}
                 className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-blue-500/50 focus-visible:border-blue-500/50"
               />
@@ -132,12 +131,6 @@ export function LoginPage() {
             </Link>
           </p>
 
-          <p className="text-center text-sm text-slate-500 mt-2">
-            Employee?{' '}
-            <Link to="/auth/employee-login" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
-              Sign in here
-            </Link>
-          </p>
         </div>
 
         <p className="text-center text-xs text-slate-600 mt-6">

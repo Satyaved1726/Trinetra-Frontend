@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 
 import { RequireAuth } from '@/components/RequireAuth';
@@ -15,11 +15,6 @@ const LandingPage = lazy(async () => {
 const LoginPage = lazy(async () => {
   const module = await import('@/pages/LoginPage');
   return { default: module.LoginPage };
-});
-
-const EmployeeLoginPage = lazy(async () => {
-  const module = await import('@/pages/EmployeeLoginPage');
-  return { default: module.EmployeeLoginPage };
 });
 
 const RegisterPage = lazy(async () => {
@@ -101,13 +96,19 @@ export default function App() {
           {/* Public routes */}
           <Route element={<AppLayout />}>
             <Route index element={<LandingPage />} />
-            <Route path="submit-complaint" element={<SubmitComplaintPage />} />
             <Route path="track-complaint" element={<TrackComplaintPage />} />
-            <Route path="auth/admin-login" element={<LoginPage />} />
-            <Route path="auth/employee-login" element={<EmployeeLoginPage />} />
+            <Route path="auth/login" element={<LoginPage />} />
             <Route path="auth/register" element={<RegisterPage />} />
-            <Route path="login" element={<LoginPage />} />
-            <Route path="register" element={<RegisterPage />} />
+            <Route path="auth/admin-login" element={<Navigate to="/auth/login" replace />} />
+            <Route path="auth/employee-login" element={<Navigate to="/auth/login" replace />} />
+            <Route path="login" element={<Navigate to="/auth/login" replace />} />
+            <Route path="register" element={<Navigate to="/auth/register" replace />} />
+          </Route>
+
+          <Route element={<RequireAuth allowedRoles={['ADMIN', 'EMPLOYEE']} />}>
+            <Route element={<AppLayout />}>
+              <Route path="submit-complaint" element={<SubmitComplaintPage />} />
+            </Route>
           </Route>
 
           {/* Protected admin routes */}

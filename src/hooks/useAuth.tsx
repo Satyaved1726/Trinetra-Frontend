@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { AuthStoreProvider, useAuthStore } from '@/store/authStore';
-import type { LoginCredentials, RegisterEmployeePayload, RegisterPayload } from '@/types/auth';
+import type { AuthSession, LoginCredentials, RegisterEmployeePayload, RegisterPayload } from '@/types/auth';
 
 interface AuthContextValue {
   token: string | null;
@@ -11,12 +11,12 @@ interface AuthContextValue {
   role: 'ADMIN' | 'EMPLOYEE' | null;
   isAdmin: boolean;
   isEmployee: boolean;
-  login: (credentials: LoginCredentials) => Promise<void>;
-  loginAdmin: (credentials: LoginCredentials) => Promise<void>;
-  loginEmployee: (credentials: LoginCredentials) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
-  registerAdmin: (payload: RegisterPayload) => Promise<void>;
-  registerEmployee: (payload: RegisterEmployeePayload) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<AuthSession>;
+  loginAdmin: (credentials: LoginCredentials) => Promise<AuthSession>;
+  loginEmployee: (credentials: LoginCredentials) => Promise<AuthSession>;
+  register: (payload: RegisterPayload) => Promise<unknown>;
+  registerAdmin: (payload: RegisterPayload) => Promise<unknown>;
+  registerEmployee: (payload: RegisterEmployeePayload) => Promise<unknown>;
   logout: () => void;
 }
 
@@ -59,7 +59,7 @@ export function useAuth(): AuthContextValue {
     isAuthenticated: store.isAuthenticated,
     isAdmin: store.isAdmin,
     isEmployee: store.isEmployee,
-    login: store.loginAdmin,
+    login: store.login,
     loginAdmin: store.loginAdmin,
     loginEmployee: store.loginEmployee,
     register: store.registerAdmin,

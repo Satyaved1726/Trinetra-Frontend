@@ -29,6 +29,8 @@ function parseStoredSession() {
 function persistSession(session: AuthSession | null) {
 	if (!session) {
 		window.localStorage.removeItem(SESSION_KEY);
+		window.localStorage.removeItem('email');
+		window.localStorage.removeItem('role');
 		window.localStorage.removeItem('userEmail');
 		window.localStorage.removeItem('userRole');
 		clearStoredToken();
@@ -36,6 +38,8 @@ function persistSession(session: AuthSession | null) {
 	}
 
 	setStoredToken(session.token);
+	window.localStorage.setItem('email', session.user.email);
+	window.localStorage.setItem('role', session.user.role);
 	window.localStorage.setItem('userEmail', session.user.email);
 	window.localStorage.setItem('userRole', session.user.role);
 	window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -48,10 +52,11 @@ interface AuthStoreValue {
 	isAuthenticated: boolean;
 	isAdmin: boolean;
 	isEmployee: boolean;
-	loginAdmin: (credentials: LoginCredentials) => Promise<void>;
-	loginEmployee: (credentials: LoginCredentials) => Promise<void>;
-	registerAdmin: (payload: RegisterPayload) => Promise<void>;
-	registerEmployee: (payload: RegisterEmployeePayload) => Promise<void>;
+	login: (credentials: LoginCredentials) => Promise<AuthSession>;
+	loginAdmin: (credentials: LoginCredentials) => Promise<AuthSession>;
+	loginEmployee: (credentials: LoginCredentials) => Promise<AuthSession>;
+	registerAdmin: (payload: RegisterPayload) => Promise<unknown>;
+	registerEmployee: (payload: RegisterEmployeePayload) => Promise<unknown>;
 	logout: () => void;
 }
 
@@ -68,21 +73,29 @@ export function AuthStoreProvider({ children }: PropsWithChildren) {
 			isAuthenticated: Boolean(session?.token),
 			isAdmin: session?.user.role === 'ADMIN',
 			isEmployee: session?.user.role === 'EMPLOYEE',
-			loginAdmin: async (credentials) => {
-				const nextSession = await authService.loginAdmin(credentials);
+			login: async (credentials) => {
+				const nextSession = await authService.login(credentials);
 				persistSession(nextSession);
 				setSession(nextSession);
+				return nextSession;
+			},
+			loginAdmin: async (credentials) => {
+				const nextSession = await authService.login(credentials);
+				persistSession(nextSession);
+				setSession(nextSession);
+				return nextSession;
 			},
 			loginEmployee: async (credentials) => {
-				const nextSession = await authService.loginEmployee(credentials);
+				const nextSession = await authService.login(credentials);
 				persistSession(nextSession);
 				setSession(nextSession);
+				return nextSession;
 			},
 			registerAdmin: async (payload) => {
-				await authService.registerAdmin(payload);
+				return authService.registerAdmin(payload);
 			},
 			registerEmployee: async (payload) => {
-				await authService.registerEmployee(payload);
+				return authService.registerAdmin(payload);
 			},
 			logout: () => {
 				persistSession(null);

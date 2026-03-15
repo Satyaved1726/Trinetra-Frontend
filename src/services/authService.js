@@ -13,7 +13,7 @@ export const loginUser = async (data) => {
 };
 
 export async function login(email, password) {
-  const response = await fetch(`${API_BASE}/api/auth/employee/login`, {
+  const response = await fetch(`${API_BASE}/api/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -32,8 +32,10 @@ export async function login(email, password) {
   }
 
   localStorage.setItem("token", data.token);
-  localStorage.setItem("userEmail", data.email ?? email);
-  localStorage.setItem("userRole", data.role ?? "EMPLOYEE");
+  localStorage.setItem("email", data.email ?? data.user?.email ?? email);
+  localStorage.setItem("role", data.role ?? data.user?.role ?? "EMPLOYEE");
+  localStorage.setItem("userEmail", data.email ?? data.user?.email ?? email);
+  localStorage.setItem("userRole", data.role ?? data.user?.role ?? "EMPLOYEE");
 
   return data;
 }
@@ -41,10 +43,12 @@ export async function login(email, password) {
 export function logout() {
   localStorage.removeItem("token");
   localStorage.removeItem("trinetra_token");
+  localStorage.removeItem("email");
+  localStorage.removeItem("role");
   localStorage.removeItem("userEmail");
   localStorage.removeItem("userRole");
   localStorage.removeItem("trinetra_session");
-  window.location.href = "/auth/employee-login";
+  window.location.href = "/auth/login";
 }
 
 const parseJwtClaims = (token) => {
@@ -140,57 +144,32 @@ const requestWithFallback = async (requests) => {
 };
 
 export const authService = {
-  async loginAdmin(payload) {
+  async login(payload) {
     console.log("Login request payload:", { email: payload.email });
-    const response = await requestWithFallback([
-      () => loginUser(payload),
-      () => API.post("/auth/admin/login", payload),
-      () => API.post("/auth/login", payload)
-    ]);
-
-    console.log("Login response:", response);
-
-    return toSession(response, "ADMIN");
-  },
-
-  async loginEmployee(payload) {
-    console.log("Employee login request payload:", { email: payload.email });
     const response = await login(payload.email, payload.password);
 
-    console.log("Employee login response:", response);
+    console.log("Login response:", response);
 
     return toSession(response, "EMPLOYEE");
   },
 
+  async loginAdmin(payload) {
+    return this.login(payload);
+  },
+
+  async loginEmployee(payload) {
+    return this.login(payload);
+  },
+
   async registerAdmin(payload) {
     console.log("Register request payload:", { name: payload.name, email: payload.email });
-    const response = await requestWithFallback([
-      () => registerUser(payload),
-      async () => {
-        const fallback = await API.post("/auth/register", payload);
-        return fallback.data;
-      }
-    ]);
+    const response = await registerUser(payload);
 
     console.log("Register response:", response);
     return response;
   },
 
   async registerEmployee(payload) {
-    console.log("Employee register request payload:", { name: payload.name, email: payload.email });
-    const response = await requestWithFallback([
-      () => registerUser(payload),
-      async () => {
-        const employeeResponse = await API.post("/auth/employee/register", payload);
-        return employeeResponse.data;
-      },
-      async () => {
-        const fallback = await API.post("/auth/register", payload);
-        return fallback.data;
-      }
-    ]);
-
-    console.log("Employee register response:", response);
-    return response;
+    return this.registerAdmin(payload);
   }
 };

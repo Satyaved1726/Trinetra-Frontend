@@ -14,7 +14,11 @@ import { useAuth } from '@/hooks/useAuth';
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters.'),
   email: z.email('Enter a valid email address.'),
-  password: z.string().min(8, 'Password must be at least 8 characters.')
+  password: z.string().min(8, 'Password must be at least 8 characters.'),
+  confirmPassword: z.string().min(8, 'Confirm password is required.')
+}).refine((values) => values.password === values.confirmPassword, {
+  message: 'Passwords do not match.',
+  path: ['confirmPassword']
 });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
@@ -56,7 +60,7 @@ export function RegisterPage() {
       const response = await registerUser(payload);
       console.log('Register submit response:', response);
       toast.success('Account created successfully. Please sign in.');
-      void navigate('/auth/admin-login', { replace: true });
+      void navigate('/auth/login', { replace: true });
     } catch (error) {
       console.error('Register submit failed:', error);
       const message = getBackendMessage(error);
@@ -89,8 +93,8 @@ export function RegisterPage() {
         {/* Card */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
           <div className="text-center mb-7">
-            <h1 className="font-display text-2xl font-bold text-white mb-2">Create Admin Account</h1>
-            <p className="text-slate-400 text-sm">Register to gain access to the dashboard</p>
+            <h1 className="font-display text-2xl font-bold text-white mb-2">Create Account</h1>
+            <p className="text-slate-400 text-sm">Register once and sign in to your role-based dashboard</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
@@ -126,6 +130,17 @@ export function RegisterPage() {
               {errors.password && <p className="text-red-400 text-xs">{errors.password.message}</p>}
             </div>
 
+            <div className="space-y-2">
+              <Label className="text-slate-300 text-sm">Confirm password</Label>
+              <Input
+                type="password"
+                placeholder="Re-enter your password"
+                {...register('confirmPassword')}
+                className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-blue-500/50 focus-visible:border-blue-500/50"
+              />
+              {errors.confirmPassword && <p className="text-red-400 text-xs">{errors.confirmPassword.message}</p>}
+            </div>
+
             <Button
               type="submit"
               disabled={isSubmitting}
@@ -138,7 +153,7 @@ export function RegisterPage() {
 
           <p className="text-center text-sm text-slate-500 mt-6">
             Already registered?{' '}
-            <Link to="/auth/admin-login" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
+            <Link to="/auth/login" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
               Sign in
             </Link>
           </p>

@@ -13,8 +13,7 @@ export function RequireAuth({ children, allowedRoles }: RequireAuthProps) {
   const location = useLocation();
 
   if (!isAuthenticated) {
-    const nextLogin = location.pathname.startsWith('/employee') ? '/auth/employee-login' : '/auth/admin-login';
-    return <Navigate to={nextLogin} replace state={{ from: `${location.pathname}${location.search}` }} />;
+    return <Navigate to="/auth/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   }
 
   if (allowedRoles && (!role || !allowedRoles.includes(role))) {

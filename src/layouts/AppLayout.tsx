@@ -76,13 +76,7 @@ export function AppLayout() {
 
               {!isAuthenticated ? (
                 <Button asChild size="sm" variant="default">
-                  <NavLink to="/auth/admin-login">Admin Login</NavLink>
-                </Button>
-              ) : null}
-
-              {!isAuthenticated ? (
-                <Button asChild size="sm" variant="outline">
-                  <NavLink to="/auth/employee-login">Employee Login</NavLink>
+                  <NavLink to="/auth/login">Login</NavLink>
                 </Button>
               ) : null}
             </div>
@@ -153,13 +147,7 @@ export function AppLayout() {
 
                   {!isAuthenticated ? (
                     <Button asChild size="sm" onClick={() => setMenuOpen(false)}>
-                      <NavLink to="/auth/admin-login">Admin Login</NavLink>
-                    </Button>
-                  ) : null}
-
-                  {!isAuthenticated ? (
-                    <Button asChild size="sm" variant="outline" onClick={() => setMenuOpen(false)}>
-                      <NavLink to="/auth/employee-login">Employee Login</NavLink>
+                      <NavLink to="/auth/login">Login</NavLink>
                     </Button>
                   ) : null}
                 </div>
