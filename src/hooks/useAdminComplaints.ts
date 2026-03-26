@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+import { adminQueryKeys } from '@/hooks/useAdminDashboardData';
 import { adminService } from '@/services/adminService';
 import { ApiError } from '@/services/httpClient';
 import type { Complaint, ManagedComplaintStatus } from '@/types/complaint';
@@ -48,60 +50,70 @@ function normalizeComplaintsResponse(payload: unknown): Complaint[] {
 }
 
 export function useAdminComplaints() {
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const previousIdsRef = useRef<Set<string>>(new Set());
 
   const reload = useCallback(async (options?: { silent?: boolean }) => {
-    const shouldSetLoading = !options?.silent;
-
     try {
-      if (shouldSetLoading) {
-        setLoading(true);
+      const response = await queryClient.fetchQuery({
+        queryKey: adminQueryKeys.complaints,
+        queryFn: () => adminService.getAllComplaints(),
+        staleTime: 0,
+        retry: 1
+      });
+
+      const normalizedComplaints = normalizeComplaintsResponse(response as unknown);
+      queryClient.setQueryData(adminQueryKeys.complaints, normalizedComplaints);
+
+      if (!options?.silent) {
+        toast.success('Data refreshed successfully');
       }
 
-      const response = (await adminService.getAllComplaints()) as unknown;
-      console.log('FULL API RESPONSE:', response);
-
-      const normalizedComplaints = normalizeComplaintsResponse(response);
-      setComplaints(normalizedComplaints);
+      return normalizedComplaints;
     } catch (error) {
-      console.error('Error fetching complaints:', error);
-      setComplaints([]);
       if (error instanceof ApiError && error.status === 403) {
         toast.error('Admin access denied for complaints API. Please login with an admin account.');
       } else {
         toast.error(error instanceof Error ? error.message : 'Unable to load complaints.');
       }
-    } finally {
-      if (shouldSetLoading) {
-        setLoading(false);
+      return [];
+    }
+  }, [queryClient]);
+
+  const complaintsQuery = useQuery({
+    queryKey: adminQueryKeys.complaints,
+    queryFn: () => adminService.getAllComplaints(),
+    retry: 1,
+    staleTime: 5 * 60 * 1000
+  });
+
+  const complaints = useMemo(() => normalizeComplaintsResponse(complaintsQuery.data as unknown), [complaintsQuery.data]);
+
+  useEffect(() => {
+    if (!Array.isArray(complaints) || complaints.length === 0) return;
+
+    const currentIds = new Set(
+      complaints.map((item) => String(item.id ?? item.trackingId)).filter(Boolean)
+    );
+
+    if (previousIdsRef.current.size > 0) {
+      const newItems = [...currentIds].filter((id) => !previousIdsRef.current.has(id));
+      if (newItems.length > 0) {
+        toast.info(newItems.length === 1 ? '1 new complaint arrived' : `${newItems.length} new complaints arrived`);
       }
     }
-  }, []);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      void reload({ silent: true });
-    }, 5000);
-
-    return () => window.clearInterval(interval);
-  }, [reload]);
-
-  useEffect(() => {
-    console.log('Updated complaints:', complaints);
+    previousIdsRef.current = currentIds;
   }, [complaints]);
 
   const updateComplaintStatus = useCallback(async (complaint: Complaint, status: ManagedComplaintStatus) => {
     try {
       setUpdatingId(complaint.trackingId);
       const updated = await adminService.updateComplaintStatus(complaint, status);
-      setComplaints((current) =>
-        (Array.isArray(current) ? current : []).map((item) =>
+
+      queryClient.setQueryData<Complaint[]>(adminQueryKeys.complaints, (current = []) =>
+        current.map((item) =>
           item.trackingId === complaint.trackingId
             ? {
                 ...item,
@@ -110,6 +122,7 @@ export function useAdminComplaints() {
             : item
         )
       );
+
       toast.success(`Complaint ${complaint.trackingId} updated.`);
       return updated;
     } catch (error) {
@@ -118,13 +131,13 @@ export function useAdminComplaints() {
     } finally {
       setUpdatingId(null);
     }
-  }, []);
+  }, [queryClient]);
 
   return {
     complaints,
-    loading,
+    loading: complaintsQuery.isLoading,
     reload,
-    setComplaints,
+    setComplaints: (value: Complaint[]) => queryClient.setQueryData(adminQueryKeys.complaints, value),
     updateComplaintStatus,
     updatingId
   };

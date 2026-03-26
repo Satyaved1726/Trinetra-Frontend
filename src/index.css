@@ -74,3 +74,13 @@
   --color-input: #1e293b;
   --color-ring: #3b82f6;
 }
+
+@layer utilities {
+  .glass-card {
+    @apply border border-border/60 bg-card/55 backdrop-blur-xl shadow-sm;
+  }
+
+  .soft-elevate {
+    @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
+  }
+}

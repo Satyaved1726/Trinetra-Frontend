@@ -8,16 +8,19 @@ import {
   LogOut,
   Menu,
   Moon,
+  RefreshCcw,
   Search,
   Shield,
   Sun,
   X
 } from 'lucide-react';
 import { useState } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { useTheme } from '@/context/ThemeContext';
+import { useAdminSmartRefresh } from '@/hooks/useAdminDashboardData';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/utils/cn';
 
@@ -31,6 +34,9 @@ const sidebarLinks = [
 export interface DashboardOutletContext {
   adminSearchQuery: string;
   setAdminSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  refreshAllAdminData: () => Promise<void>;
+  adminDataRefreshing: boolean;
+  adminDataLastUpdatedText: string;
 }
 
 function SidebarNav({ collapsed, onLinkClick }: { collapsed?: boolean; onLinkClick?: () => void }) {
@@ -77,6 +83,8 @@ function SidebarNav({ collapsed, onLinkClick }: { collapsed?: boolean; onLinkCli
 
 export function DashboardLayout() {
   const { theme, toggleTheme } = useTheme();
+  const { refreshAll, isManualRefreshing, lastUpdatedText } = useAdminSmartRefresh();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
@@ -118,7 +126,7 @@ export function DashboardLayout() {
       {/* Main content column */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top Navbar */}
-        <header className="h-16 flex items-center gap-3 px-4 border-b border-border bg-card shrink-0">
+        <header className="sticky top-0 z-30 h-16 flex items-center gap-3 px-4 border-b border-border bg-card/90 backdrop-blur-xl shrink-0">
           {/* Desktop collapse toggle */}
           <Button
             variant="ghost"
@@ -158,6 +166,19 @@ export function DashboardLayout() {
 
           {/* Right actions */}
           <div className="flex items-center gap-1 ml-auto">
+            <div className="hidden sm:flex items-center gap-2 mr-2">
+              <span className="text-xs text-muted-foreground">{lastUpdatedText}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void refreshAll()}
+                disabled={isManualRefreshing}
+              >
+                <RefreshCcw className={cn('h-4 w-4 mr-2', isManualRefreshing && 'animate-spin')} />
+                {isManualRefreshing ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </div>
+
             <Button
               variant="ghost"
               size="icon"
@@ -167,6 +188,12 @@ export function DashboardLayout() {
             >
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
+
+            <div className="hidden sm:flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-2 py-1">
+              <Sun className="h-3.5 w-3.5 text-muted-foreground" />
+              <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} aria-label="Dark mode" />
+              <Moon className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
 
             <Button
               variant="ghost"
@@ -186,7 +213,25 @@ export function DashboardLayout() {
 
         {/* Page content */}
         <main className="flex-1 overflow-auto p-6">
-          <Outlet context={{ adminSearchQuery, setAdminSearchQuery }} />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.24 }}
+            >
+              <Outlet
+                context={{
+                  adminSearchQuery,
+                  setAdminSearchQuery,
+                  refreshAllAdminData: refreshAll,
+                  adminDataRefreshing: isManualRefreshing,
+                  adminDataLastUpdatedText: lastUpdatedText
+                }}
+              />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 

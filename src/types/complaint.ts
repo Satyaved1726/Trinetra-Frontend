@@ -4,6 +4,7 @@ export type ManagedComplaintStatus =
   | 'RESOLVED'
   | 'REJECTED';
 export type ComplaintStatus = 'SUBMITTED' | ManagedComplaintStatus | string;
+export type ComplaintPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string;
 
 export interface ComplaintEvidence {
   id?: string;
@@ -21,23 +22,51 @@ export interface ComplaintComment {
   createdAt: string;
 }
 
+export interface ComplaintNote {
+  id?: string;
+  note: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface ComplaintTimelineEvent {
+  status: ComplaintStatus;
+  at: string;
+}
+
 export interface Complaint {
   id?: string | number;
   trackingId: string;
   title: string;
   description?: string;
   category: string;
+  priority?: ComplaintPriority;
   status: ComplaintStatus;
   createdAt: string;
+  submittedAt?: string;
   anonymous?: boolean;
   reporterName?: string;
   reporterEmail?: string;
+  assignedOfficer?: string;
+  assignedOfficerId?: string;
   investigationNotes?: string;
   comments?: ComplaintComment[];
+  notes?: ComplaintNote[];
+  timeline?: ComplaintTimelineEvent[];
+  statusHistory?: ComplaintTimelineEvent[];
+  underReviewAt?: string;
+  investigatingAt?: string;
+  resolvedAt?: string;
+  rejectedAt?: string;
   evidenceFiles?: Array<{
     id?: string;
     fileUrl: string;
     fileType?: string;
+  }>;
+  evidence_files?: Array<{
+    id?: string;
+    url: string;
+    type?: string;
   }>;
   evidence?: ComplaintEvidence[];
   evidenceUrl?: string;

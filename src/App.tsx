@@ -43,6 +43,11 @@ const AdminComplaintsPage = lazy(async () => {
   return { default: module.AdminComplaintsPage };
 });
 
+const AdminComplaintDetailPage = lazy(async () => {
+  const module = await import('@/pages/AdminComplaintDetailPage');
+  return { default: module.AdminComplaintDetailPage };
+});
+
 const AdminAnalyticsPage = lazy(async () => {
   const module = await import('@/pages/AdminAnalyticsPage');
   return { default: module.AdminAnalyticsPage };
@@ -136,6 +141,7 @@ export default function App() {
             <Route element={<DashboardLayout />}>
               <Route path="admin/dashboard" element={<AdminDashboardPage />} />
               <Route path="admin/complaints" element={<AdminComplaintsPage />} />
+              <Route path="admin/complaints/:id" element={<AdminComplaintDetailPage />} />
               <Route path="admin/reports" element={<AdminReportsPage />} />
               <Route path="admin/analytics" element={<AdminAnalyticsPage />} />
             </Route>

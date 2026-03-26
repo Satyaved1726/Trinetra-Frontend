@@ -34,7 +34,7 @@ const statusBadgeVariant = (status: string) => {
   if (status === 'RESOLVED') return 'success';
   if (status === 'REJECTED') return 'destructive';
   if (status === 'UNDER_REVIEW') return 'warning';
-  if (status === 'INVESTIGATING') return 'warning';
+  if (status === 'INVESTIGATING') return 'secondary';
   return 'secondary';
 };
 
@@ -78,8 +78,8 @@ function StatCard({ title, value, description, icon: Icon, color, iconBg }: Stat
 }
 
 export function AdminDashboardPage() {
-  const { adminSearchQuery, setAdminSearchQuery } = useOutletContext<DashboardOutletContext>();
-  const { complaints, loading, reload, updateComplaintStatus, updatingId } = useAdminComplaints();
+  const { adminSearchQuery, setAdminSearchQuery, refreshAllAdminData, adminDataRefreshing } = useOutletContext<DashboardOutletContext>();
+  const { complaints, loading, updateComplaintStatus, updatingId } = useAdminComplaints();
   const [draftStatuses, setDraftStatuses] = useState<Record<string, ManagedComplaintStatus>>({});
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<DashboardStatusFilter>('ALL');
@@ -140,7 +140,7 @@ export function AdminDashboardPage() {
   };
 
   const handleRefresh = () => {
-    void reload();
+    void refreshAllAdminData();
   };
 
   return (
@@ -163,12 +163,12 @@ export function AdminDashboardPage() {
           <Button
             variant="outline"
             size="sm"
-            disabled={loading}
+            disabled={loading || adminDataRefreshing}
             onClick={handleRefresh}
             className="self-start sm:self-auto"
           >
-            <RefreshCcw className={cn('h-4 w-4 mr-2', loading && 'animate-spin')} />
-            {loading ? 'Refreshing…' : 'Refresh'}
+            <RefreshCcw className={cn('h-4 w-4 mr-2', (loading || adminDataRefreshing) && 'animate-spin')} />
+            {loading || adminDataRefreshing ? 'Refreshing…' : 'Refresh'}
           </Button>
         </div>
       </div>

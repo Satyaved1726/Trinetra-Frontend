@@ -1,10 +1,25 @@
 import { apiClient, requestWithFallback } from '@/services/httpClient';
-import type { Complaint, ManagedComplaintStatus } from '@/types/complaint';
+import type { Complaint, ComplaintNote, ManagedComplaintStatus } from '@/types/complaint';
 
 export interface ComplaintQuery {
   status?: string;
   category?: string;
   search?: string;
+}
+
+export interface ReportQuery {
+  from?: string;
+  to?: string;
+  category?: string;
+  status?: string;
+}
+
+export interface ReportMetrics {
+  totalComplaints: number;
+  resolutionRate: number;
+  averageResolutionTime: number;
+  complaintsOverTime: AdminAnalyticsPoint[];
+  complaintsByCategory: AdminAnalyticsPoint[];
 }
 
 export interface AdminAnalyticsPoint {
@@ -16,7 +31,9 @@ export interface AdminAnalyticsResponse {
   totalComplaints: number;
   openComplaints: number;
   resolvedComplaints: number;
+  rejectedComplaints?: number;
   anonymousComplaints: number;
+  identifiedComplaints?: number;
   complaintsOverTime: AdminAnalyticsPoint[];
   complaintsByCategory: AdminAnalyticsPoint[];
   complaintsByStatus: AdminAnalyticsPoint[];
@@ -90,7 +107,9 @@ function normalizeAnalyticsPayload(payload: unknown): AdminAnalyticsResponse {
     totalComplaints: 0,
     openComplaints: 0,
     resolvedComplaints: 0,
+    rejectedComplaints: 0,
     anonymousComplaints: 0,
+    identifiedComplaints: 0,
     complaintsOverTime: [],
     complaintsByCategory: [],
     complaintsByStatus: []
@@ -117,7 +136,9 @@ function normalizeAnalyticsPayload(payload: unknown): AdminAnalyticsResponse {
     totalComplaints: toNumber(source.totalComplaints),
     openComplaints: toNumber(source.openComplaints),
     resolvedComplaints: toNumber(source.resolvedComplaints),
+    rejectedComplaints: toNumber(source.rejectedComplaints),
     anonymousComplaints: toNumber(source.anonymousComplaints),
+    identifiedComplaints: toNumber(source.identifiedComplaints),
     complaintsOverTime: ensurePointArray(source.complaintsOverTime),
     complaintsByCategory: ensurePointArray(source.complaintsByCategory),
     complaintsByStatus: ensurePointArray(source.complaintsByStatus)
@@ -143,16 +164,75 @@ export const adminService = {
     return normalizeComplaintsPayload(payload);
   },
 
+  async getComplaintById(id: string) {
+    const payload = await requestWithFallback<unknown>([
+      () => apiClient.get(`/api/complaints/${encodeURIComponent(id)}`),
+      () => apiClient.get(`/api/admin/complaints/${encodeURIComponent(id)}`),
+      () => apiClient.get(`/admin/complaints/${encodeURIComponent(id)}`),
+      () => apiClient.get(`/complaints/${encodeURIComponent(id)}`)
+    ]);
+
+    if (!payload || typeof payload !== 'object') return undefined;
+    const record = payload as { data?: unknown; content?: unknown };
+    const source = (record.data ?? record.content ?? payload) as Complaint;
+    return source;
+  },
+
   async updateComplaintStatus(complaint: Complaint, status: ManagedComplaintStatus) {
     const primaryId = complaint.id ?? complaint.trackingId;
 
     return requestWithFallback<Complaint>([
-      () => apiClient.patch(`/api/admin/complaints/${encodeURIComponent(String(primaryId))}/status`, { status }),
       () => apiClient.put(`/api/complaints/${encodeURIComponent(String(primaryId))}/status`, { status }),
+      () => apiClient.patch(`/api/admin/complaints/${encodeURIComponent(String(primaryId))}/status`, { status }),
       () => apiClient.patch(`/admin/complaints/${encodeURIComponent(String(primaryId))}/status`, { status }),
       () => apiClient.put(`/complaints/${encodeURIComponent(String(primaryId))}/status`, { status }),
       () => apiClient.put(`/complaints/${encodeURIComponent(complaint.trackingId)}/status`, { status })
     ]);
+  },
+
+  async assignComplaintOfficer(complaint: Complaint, officerIdOrName: string) {
+    const primaryId = complaint.id ?? complaint.trackingId;
+
+    return requestWithFallback<Complaint>([
+      () => apiClient.put(`/api/complaints/${encodeURIComponent(String(primaryId))}/assign`, { officer: officerIdOrName }),
+      () => apiClient.put(`/api/admin/complaints/${encodeURIComponent(String(primaryId))}/assign`, { officer: officerIdOrName }),
+      () => apiClient.patch(`/api/admin/complaints/${encodeURIComponent(String(primaryId))}`, { assignedOfficer: officerIdOrName }),
+      () => apiClient.patch(`/complaints/${encodeURIComponent(String(primaryId))}`, { assignedOfficer: officerIdOrName })
+    ]);
+  },
+
+  async addComplaintNote(complaint: Complaint, note: string) {
+    const primaryId = complaint.id ?? complaint.trackingId;
+
+    const payload = await requestWithFallback<unknown>([
+      () => apiClient.post(`/api/complaints/${encodeURIComponent(String(primaryId))}/notes`, { note }),
+      () => apiClient.post(`/api/admin/complaints/${encodeURIComponent(String(primaryId))}/notes`, { note }),
+      () => apiClient.patch(`/api/admin/complaints/${encodeURIComponent(String(primaryId))}/notes`, { notes: note })
+    ]);
+
+    if (payload && typeof payload === 'object') {
+      const record = payload as { data?: unknown; content?: unknown };
+      const source = (record.data ?? record.content ?? payload) as Complaint;
+      if (source && typeof source === 'object' && ('trackingId' in source || 'id' in source)) {
+        return source;
+      }
+    }
+
+    return this.getComplaintById(String(primaryId));
+  },
+
+  async getComplaintNotes(complaint: Complaint) {
+    const primaryId = complaint.id ?? complaint.trackingId;
+    const payload = await requestWithFallback<unknown>([
+      () => apiClient.get(`/api/complaints/${encodeURIComponent(String(primaryId))}/notes`),
+      () => apiClient.get(`/api/admin/complaints/${encodeURIComponent(String(primaryId))}/notes`)
+    ]);
+
+    if (Array.isArray(payload)) return payload as ComplaintNote[];
+    if (!payload || typeof payload !== 'object') return [];
+    const record = payload as { data?: unknown; content?: unknown; items?: unknown; notes?: unknown; results?: unknown };
+    const source = record.data ?? record.content ?? record.items ?? record.notes ?? record.results;
+    return Array.isArray(source) ? (source as ComplaintNote[]) : [];
   },
 
   async addInvestigationNotes(complaint: Complaint, notes: string) {
@@ -167,5 +247,77 @@ export const adminService = {
 
   async getAnalytics() {
     return apiClient.get<unknown>('/api/admin/analytics').then((response) => normalizeAnalyticsPayload(response.data));
+  },
+
+  async getReports(query?: ReportQuery) {
+    const params = {
+      from: query?.from,
+      to: query?.to,
+      category: query?.category,
+      status: query?.status
+    };
+
+    const payload = await requestWithFallback<unknown>([
+      () => apiClient.get('/api/admin/reports', { params }),
+      () => apiClient.get('/admin/reports', { params })
+    ]);
+
+    return normalizeComplaintsPayload(payload);
+  },
+
+  async exportReportsCSV(query?: ReportQuery): Promise<void> {
+    const params = {
+      from: query?.from,
+      to: query?.to,
+      category: query?.category,
+      status: query?.status
+    };
+
+    try {
+      const response = await apiClient.get('/api/admin/reports/export/csv', {
+        params,
+        responseType: 'blob'
+      });
+
+      const blob = response.data as Blob;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reports-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async exportReportsPDF(query?: ReportQuery): Promise<void> {
+    const params = {
+      from: query?.from,
+      to: query?.to,
+      category: query?.category,
+      status: query?.status
+    };
+
+    try {
+      const response = await apiClient.get('/api/admin/reports/export/pdf', {
+        params,
+        responseType: 'blob'
+      });
+
+      const blob = response.data as Blob;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reports-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      throw error;
+    }
   }
 };
