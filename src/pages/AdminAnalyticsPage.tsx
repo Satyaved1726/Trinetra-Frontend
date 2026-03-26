@@ -88,6 +88,10 @@ export function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const complaintsOverTime = Array.isArray(analytics.complaintsOverTime) ? analytics.complaintsOverTime : [];
+  const complaintsByCategory = Array.isArray(analytics.complaintsByCategory) ? analytics.complaintsByCategory : [];
+  const complaintsByStatus = Array.isArray(analytics.complaintsByStatus) ? analytics.complaintsByStatus : [];
+
   const loadAnalytics = async () => {
     setLoading(true);
     setError(null);
@@ -155,7 +159,7 @@ export function AdminAnalyticsPage() {
           <ChartShell title="Complaints Over Time">
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={analytics.complaintsOverTime}>
+                <LineChart data={complaintsOverTime}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="label" stroke="#94a3b8" />
                   <YAxis stroke="#94a3b8" allowDecimals={false} />
@@ -173,8 +177,8 @@ export function AdminAnalyticsPage() {
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={analytics.complaintsByCategory} dataKey="count" nameKey="label" outerRadius={92} innerRadius={52}>
-                    {analytics.complaintsByCategory.map((entry, index) => (
+                  <Pie data={complaintsByCategory} dataKey="count" nameKey="label" outerRadius={92} innerRadius={52}>
+                    {complaintsByCategory.map((entry, index) => (
                       <Cell key={`${entry.label}-${index}`} fill={pieColors[index % pieColors.length]} />
                     ))}
                   </Pie>
@@ -191,7 +195,7 @@ export function AdminAnalyticsPage() {
           <ChartShell title="Complaints By Status">
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analytics.complaintsByStatus}>
+                <BarChart data={complaintsByStatus}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="label" stroke="#94a3b8" />
                   <YAxis stroke="#94a3b8" allowDecimals={false} />

@@ -3,6 +3,7 @@ import {
   BarElement,
   CategoryScale,
   Chart as ChartJS,
+  Filler,
   Legend,
   LineElement,
   LinearScale,
@@ -14,7 +15,7 @@ import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Complaint, ComplaintStats } from '@/types/complaint';
 
-ChartJS.register(ArcElement, BarElement, CategoryScale, Legend, LineElement, LinearScale, PointElement, Tooltip);
+ChartJS.register(ArcElement, BarElement, CategoryScale, Filler, Legend, LineElement, LinearScale, PointElement, Tooltip);
 
 export function ComplaintCharts({ complaints, stats }: { complaints: Complaint[]; stats: ComplaintStats }) {
   const categoryCounts = complaints.reduce<Record<string, number>>((accumulator, complaint) => {
