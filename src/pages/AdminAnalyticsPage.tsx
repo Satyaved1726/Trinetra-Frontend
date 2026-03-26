@@ -37,6 +37,20 @@ function ensureAnalyticsArray(value: unknown) {
   return Array.isArray(value) ? value : [];
 }
 
+function unwrapAnalyticsPayload(payload: unknown) {
+  if (!payload || typeof payload !== 'object') {
+    return {} as Record<string, unknown>;
+  }
+
+  const root = payload as Record<string, unknown>;
+  const levelOne =
+    (root.data && typeof root.data === 'object' ? (root.data as Record<string, unknown>) :
+      root.content && typeof root.content === 'object' ? (root.content as Record<string, unknown>) :
+      root.analytics && typeof root.analytics === 'object' ? (root.analytics as Record<string, unknown>) : root) as Record<string, unknown>;
+
+  return levelOne;
+}
+
 const emptyAnalytics: AdminAnalyticsResponse = {
   totalComplaints: 0,
   openComplaints: 0,
@@ -105,13 +119,14 @@ export function AdminAnalyticsPage() {
   const complaintsByCategory = Array.isArray(analytics.complaintsByCategory) ? analytics.complaintsByCategory : [];
   const complaintsByStatus = Array.isArray(analytics.complaintsByStatus) ? analytics.complaintsByStatus : [];
 
-  const loadAnalytics = async () => {
+  const fetchAnalytics = async () => {
     setLoading(true);
     setError(null);
 
     try {
       const response = (await adminService.getAnalytics()) as unknown;
-      const data = (response && typeof response === 'object' ? response : {}) as Partial<AdminAnalyticsResponse>;
+      console.log('Analytics API:', response);
+      const data = unwrapAnalyticsPayload(response) as Partial<AdminAnalyticsResponse>;
 
       setAnalytics({
         totalComplaints: toNumber(data.totalComplaints),
@@ -130,7 +145,15 @@ export function AdminAnalyticsPage() {
   };
 
   useEffect(() => {
-    void loadAnalytics();
+    void fetchAnalytics();
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void fetchAnalytics();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
   }, []);
 
   return (
@@ -145,7 +168,7 @@ export function AdminAnalyticsPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => void loadAnalytics()}
+          onClick={() => void fetchAnalytics()}
           disabled={loading}
           className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
         >
@@ -198,7 +221,7 @@ export function AdminAnalyticsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={complaintsByCategory} dataKey="count" nameKey="label" outerRadius={92} innerRadius={52}>
-                    {complaintsByCategory.map((entry, index) => (
+                    {(Array.isArray(complaintsByCategory) ? complaintsByCategory : []).map((entry, index) => (
                       <Cell key={`${entry.label}-${index}`} fill={pieColors[index % pieColors.length]} />
                     ))}
                   </Pie>

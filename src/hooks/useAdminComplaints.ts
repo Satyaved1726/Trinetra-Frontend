@@ -17,12 +17,14 @@ function normalizeComplaintsResponse(payload: unknown): Complaint[] {
   const root = payload as {
     complaints?: unknown;
     data?: unknown;
+    content?: unknown;
     items?: unknown;
     results?: unknown;
   };
 
   if (Array.isArray(root.complaints)) return root.complaints as Complaint[];
   if (Array.isArray(root.data)) return root.data as Complaint[];
+  if (Array.isArray(root.content)) return root.content as Complaint[];
   if (Array.isArray(root.items)) return root.items as Complaint[];
   if (Array.isArray(root.results)) return root.results as Complaint[];
 
@@ -30,12 +32,14 @@ function normalizeComplaintsResponse(payload: unknown): Complaint[] {
     const nested = root.data as {
       complaints?: unknown;
       data?: unknown;
+      content?: unknown;
       items?: unknown;
       results?: unknown;
     };
 
     if (Array.isArray(nested.complaints)) return nested.complaints as Complaint[];
     if (Array.isArray(nested.data)) return nested.data as Complaint[];
+    if (Array.isArray(nested.content)) return nested.content as Complaint[];
     if (Array.isArray(nested.items)) return nested.items as Complaint[];
     if (Array.isArray(nested.results)) return nested.results as Complaint[];
   }
@@ -57,7 +61,7 @@ export function useAdminComplaints() {
       }
 
       const response = (await adminService.getAllComplaints()) as unknown;
-      console.log('RAW API:', response);
+      console.log('FULL API RESPONSE:', response);
 
       const normalizedComplaints = normalizeComplaintsResponse(response);
       setComplaints(normalizedComplaints);

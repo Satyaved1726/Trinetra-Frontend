@@ -216,14 +216,7 @@ export function AdminComplaintsPage() {
   const [draftStatuses, setDraftStatuses] = useState<Record<string, ManagedComplaintStatus>>({});
   const [selectedComplaint, setSelectedComplaint] = useState<ExtendedComplaint | null>(null);
 
-  const safeComplaints = useMemo(() => {
-    if (!Array.isArray(complaints)) {
-      console.warn('Complaints is not an array:', complaints);
-      return [];
-    }
-
-    return complaints.map((complaint) => ({ ...complaint }));
-  }, [complaints]);
+  const safeComplaints = useMemo(() => (Array.isArray(complaints) ? complaints.map((complaint) => ({ ...complaint })) : []), [complaints]);
 
   useEffect(() => {
     setDraftStatuses(

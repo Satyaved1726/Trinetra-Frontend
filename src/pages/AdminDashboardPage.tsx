@@ -139,6 +139,10 @@ export function AdminDashboardPage() {
     setViewingId(null);
   };
 
+  const handleRefresh = () => {
+    void reload();
+  };
+
   return (
     <div className="space-y-8">
       {/* Page header */}
@@ -160,7 +164,7 @@ export function AdminDashboardPage() {
             variant="outline"
             size="sm"
             disabled={loading}
-            onClick={() => void reload()}
+            onClick={handleRefresh}
             className="self-start sm:self-auto"
           >
             <RefreshCcw className={cn('h-4 w-4 mr-2', loading && 'animate-spin')} />
