@@ -1,142 +1,211 @@
 import { motion } from 'framer-motion';
-import { BarChart3, CalendarRange, PieChart, RefreshCcw, SearchCheck, TimerReset } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { AlertCircle, RefreshCcw } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from 'recharts';
 
-import { ComplaintCharts } from '@/components/ComplaintCharts';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import type { DashboardOutletContext } from '@/layouts/DashboardLayout';
-import { useAdminComplaints } from '@/hooks/useAdminComplaints';
-import { buildComplaintStats, formatDate } from '@/utils/formatters';
+import { Skeleton } from '@/components/ui/skeleton';
+import { adminService, type AdminAnalyticsResponse } from '@/services/adminService';
+import { toApiError } from '@/services/httpClient';
 
-function InsightCard({ title, value, description }: { title: string; value: string; description: string }) {
+const pieColors = ['#38bdf8', '#22c55e', '#f59e0b', '#f43f5e', '#a78bfa', '#14b8a6'];
+
+const emptyAnalytics: AdminAnalyticsResponse = {
+  totalComplaints: 0,
+  openComplaints: 0,
+  resolvedComplaints: 0,
+  anonymousComplaints: 0,
+  complaintsOverTime: [],
+  complaintsByCategory: [],
+  complaintsByStatus: []
+};
+
+function KpiCard({ title, value }: { title: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">{title}</p>
-      <p className="mt-3 font-display text-3xl font-bold text-foreground">{value}</p>
-      <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+      className="rounded-2xl border border-slate-800 bg-slate-900/95 p-5 shadow-[0_16px_38px_rgba(2,6,23,0.55)]"
+    >
+      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{title}</p>
+      <p className="mt-3 font-display text-3xl font-bold text-slate-100">{value}</p>
+    </motion.div>
+  );
+}
+
+function ChartShell({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="rounded-2xl border border-slate-800 bg-slate-900/95 p-5 shadow-[0_16px_38px_rgba(2,6,23,0.55)]"
+    >
+      <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-300">{title}</h3>
+      {children}
+    </motion.div>
+  );
+}
+
+function KpiSkeletonGrid() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <Skeleton className="h-28 rounded-2xl bg-slate-800" />
+      <Skeleton className="h-28 rounded-2xl bg-slate-800" />
+      <Skeleton className="h-28 rounded-2xl bg-slate-800" />
+      <Skeleton className="h-28 rounded-2xl bg-slate-800" />
+    </div>
+  );
+}
+
+function ChartSkeletonGrid() {
+  return (
+    <div className="grid gap-5 xl:grid-cols-3">
+      <Skeleton className="h-80 rounded-2xl bg-slate-800" />
+      <Skeleton className="h-80 rounded-2xl bg-slate-800" />
+      <Skeleton className="h-80 rounded-2xl bg-slate-800" />
     </div>
   );
 }
 
 export function AdminAnalyticsPage() {
-  const { adminSearchQuery } = useOutletContext<DashboardOutletContext>();
-  const { complaints, loading, reload } = useAdminComplaints();
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const [analytics, setAnalytics] = useState<AdminAnalyticsResponse>(emptyAnalytics);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredComplaints = useMemo(() => {
-    const searchValue = adminSearchQuery.trim().toLowerCase();
-    const startBoundary = fromDate ? new Date(`${fromDate}T00:00:00`) : null;
-    const endBoundary = toDate ? new Date(`${toDate}T23:59:59.999`) : null;
+  const loadAnalytics = async () => {
+    setLoading(true);
+    setError(null);
 
-    return complaints.filter((complaint) => {
-      const complaintDate = new Date(complaint.createdAt);
-      const matchesSearch =
-        !searchValue ||
-        [complaint.trackingId, complaint.title, complaint.category, complaint.status, complaint.description ?? '']
-          .join(' ')
-          .toLowerCase()
-          .includes(searchValue);
+    try {
+      const response = await adminService.getAnalytics();
+      setAnalytics({
+        ...emptyAnalytics,
+        ...response
+      });
+    } catch (err) {
+      setError(toApiError(err).message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      return (!startBoundary || complaintDate >= startBoundary) && (!endBoundary || complaintDate <= endBoundary) && matchesSearch;
-    });
-  }, [adminSearchQuery, complaints, fromDate, toDate]);
-
-  const stats = useMemo(() => buildComplaintStats(filteredComplaints), [filteredComplaints]);
-  const topCategory = useMemo(() => {
-    const categoryCounts = filteredComplaints.reduce<Record<string, number>>((accumulator, complaint) => {
-      accumulator[complaint.category] = (accumulator[complaint.category] ?? 0) + 1;
-      return accumulator;
-    }, {});
-
-    return Object.entries(categoryCounts).sort((left, right) => right[1] - left[1])[0]?.[0] ?? 'No data';
-  }, [filteredComplaints]);
-  const anonymousShare = filteredComplaints.length
-    ? `${Math.round((filteredComplaints.filter((complaint) => complaint.anonymous).length / filteredComplaints.length) * 100)}%`
-    : '0%';
-  const latestFiling = filteredComplaints[0] ? formatDate(filteredComplaints[0].createdAt) : 'No data';
+  useEffect(() => {
+    void loadAnalytics();
+  }, []);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Analytics</p>
-          <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-foreground">Operational Analytics</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Review complaint trends, category concentration, and backlog indicators using the shared admin search context.
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-400">Analytics</p>
+          <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-slate-100">Admin Analytics Dashboard</h1>
+          <p className="mt-2 text-sm text-slate-400">Live operational metrics from /api/admin/analytics.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void reload()} disabled={loading}>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void loadAnalytics()}
+          disabled={loading}
+          className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
+        >
           <RefreshCcw className="mr-2 h-4 w-4" />
-          Reload analytics
+          Refresh
         </Button>
       </div>
 
-      <div className="grid gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm lg:grid-cols-[1fr_1fr]">
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <CalendarRange className="h-3.5 w-3.5" />
-            From date
-          </label>
-          <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+      {error ? (
+        <div className="flex items-center gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          <AlertCircle className="h-4 w-4" />
+          {error}
         </div>
-        <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">To date</label>
-          <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+      ) : null}
+
+      {loading ? (
+        <KpiSkeletonGrid />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard title="Total Complaints" value={analytics.totalComplaints} />
+          <KpiCard title="Open Complaints" value={analytics.openComplaints} />
+          <KpiCard title="Resolved Complaints" value={analytics.resolvedComplaints} />
+          <KpiCard title="Anonymous Complaints" value={analytics.anonymousComplaints} />
         </div>
-      </div>
+      )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <InsightCard title="Top Category" value={topCategory} description="Most frequent complaint category in the active view." />
-        <InsightCard title="Anonymous Share" value={anonymousShare} description="Percentage of complaints filed without identity disclosure." />
-        <InsightCard title="Open Backlog" value={String(stats.openComplaints)} description="Submitted and under-review cases still awaiting closure." />
-        <InsightCard title="Latest Filing" value={latestFiling} description="Most recent complaint timestamp in the filtered dataset." />
-      </div>
+      {loading ? (
+        <ChartSkeletonGrid />
+      ) : (
+        <div className="grid gap-5 xl:grid-cols-3">
+          <ChartShell title="Complaints Over Time">
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={analytics.complaintsOverTime}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="label" stroke="#94a3b8" />
+                  <YAxis stroke="#94a3b8" allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: 12 }}
+                    labelStyle={{ color: '#cbd5e1' }}
+                  />
+                  <Line type="monotone" dataKey="count" stroke="#38bdf8" strokeWidth={3} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartShell>
 
-      <ComplaintCharts complaints={filteredComplaints} stats={stats} />
+          <ChartShell title="Complaints By Category">
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={analytics.complaintsByCategory} dataKey="count" nameKey="label" outerRadius={92} innerRadius={52}>
+                    {analytics.complaintsByCategory.map((entry, index) => (
+                      <Cell key={`${entry.label}-${index}`} fill={pieColors[index % pieColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: 12 }}
+                    labelStyle={{ color: '#cbd5e1' }}
+                  />
+                  <Legend wrapperStyle={{ color: '#cbd5e1' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartShell>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <BarChart3 className="h-5 w-5" />
+          <ChartShell title="Complaints By Status">
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analytics.complaintsByStatus}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="label" stroke="#94a3b8" />
+                  <YAxis stroke="#94a3b8" allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: 12 }}
+                    labelStyle={{ color: '#cbd5e1' }}
+                  />
+                  <Bar dataKey="count" fill="#22c55e" radius={[10, 10, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-            <div>
-              <h2 className="font-semibold text-foreground">Volume Insight</h2>
-              <p className="text-xs text-muted-foreground">Total complaints currently in scope</p>
-            </div>
-          </div>
-          <p className="mt-5 font-display text-4xl font-bold text-foreground">{stats.totalComplaints}</p>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600">
-              <SearchCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground">Resolution Rate</h2>
-              <p className="text-xs text-muted-foreground">Resolved complaints relative to visible workload</p>
-            </div>
-          </div>
-          <p className="mt-5 font-display text-4xl font-bold text-foreground">
-            {stats.totalComplaints ? `${Math.round((stats.resolvedComplaints / stats.totalComplaints) * 100)}%` : '0%'}
-          </p>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
-              <TimerReset className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground">Escalation Watch</h2>
-              <p className="text-xs text-muted-foreground">Rejected plus unresolved cases needing review</p>
-            </div>
-          </div>
-          <p className="mt-5 font-display text-4xl font-bold text-foreground">{stats.openComplaints + stats.rejectedComplaints}</p>
-        </motion.div>
-      </div>
+          </ChartShell>
+        </div>
+      )}
     </div>
   );
 }

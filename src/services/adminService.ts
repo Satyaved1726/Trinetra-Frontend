@@ -7,6 +7,21 @@ export interface ComplaintQuery {
   search?: string;
 }
 
+export interface AdminAnalyticsPoint {
+  label: string;
+  count: number;
+}
+
+export interface AdminAnalyticsResponse {
+  totalComplaints: number;
+  openComplaints: number;
+  resolvedComplaints: number;
+  anonymousComplaints: number;
+  complaintsOverTime: AdminAnalyticsPoint[];
+  complaintsByCategory: AdminAnalyticsPoint[];
+  complaintsByStatus: AdminAnalyticsPoint[];
+}
+
 export const adminService = {
   async getAllComplaints(query?: ComplaintQuery) {
     const params = {
@@ -44,5 +59,9 @@ export const adminService = {
       () => apiClient.patch(`/admin/complaints/${encodeURIComponent(String(primaryId))}/notes`, { notes }),
       () => apiClient.patch(`/complaints/${encodeURIComponent(String(primaryId))}`, { investigationNotes: notes })
     ]);
+  },
+
+  async getAnalytics() {
+    return apiClient.get<AdminAnalyticsResponse>('/api/admin/analytics').then((response) => response.data);
   }
 };
