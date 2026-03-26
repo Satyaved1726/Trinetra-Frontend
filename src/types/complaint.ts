@@ -34,6 +34,11 @@ export interface Complaint {
   reporterEmail?: string;
   investigationNotes?: string;
   comments?: ComplaintComment[];
+  evidenceFiles?: Array<{
+    id?: string;
+    fileUrl: string;
+    fileType?: string;
+  }>;
   evidence?: ComplaintEvidence[];
   evidenceUrl?: string;
 }

@@ -16,7 +16,18 @@ const complaintFilters = ['ALL', 'SUBMITTED', ...statusOptions] as const;
 
 type ComplaintFilter = (typeof complaintFilters)[number];
 
+type ApiEvidenceFile = {
+  id?: string;
+  fileUrl: string;
+  fileType?: string;
+};
+
+type ExtendedComplaint = Complaint & {
+  evidenceFiles?: ApiEvidenceFile[];
+};
+
 type EvidenceFileItem = {
+  id: string;
   url: string;
   type?: string;
   name?: string;
@@ -30,16 +41,23 @@ function inferEvidenceType(fileUrl: string, fileType?: string) {
   return 'other';
 }
 
-function toEvidenceFiles(complaint: Complaint): EvidenceFileItem[] {
-  const files = (complaint as Complaint & { evidenceFiles?: Array<{ url: string; type?: string; name?: string }> }).evidenceFiles;
+function toEvidenceFiles(complaint: ExtendedComplaint): EvidenceFileItem[] {
+  const files = complaint.evidenceFiles;
   if (Array.isArray(files) && files.length > 0) {
-    return files.filter((item) => typeof item?.url === 'string' && item.url.length > 0);
+    return files
+      .filter((item) => typeof item?.fileUrl === 'string' && item.fileUrl.length > 0)
+      .map((item, index) => ({
+        id: item.id ?? `${item.fileUrl}-${index}`,
+        url: item.fileUrl,
+        type: item.fileType
+      }));
   }
 
   if (Array.isArray(complaint.evidence) && complaint.evidence.length > 0) {
     return complaint.evidence
       .filter((item) => typeof item?.url === 'string' && item.url.length > 0)
-      .map((item) => ({
+      .map((item, index) => ({
+        id: item.id ?? `${item.url}-${index}`,
         url: item.url,
         type: item.mimeType,
         name: item.name
@@ -47,7 +65,7 @@ function toEvidenceFiles(complaint: Complaint): EvidenceFileItem[] {
   }
 
   if (complaint.evidenceUrl) {
-    return [{ url: complaint.evidenceUrl }];
+    return [{ id: complaint.evidenceUrl, url: complaint.evidenceUrl }];
   }
 
   return [];
@@ -57,12 +75,16 @@ function ComplaintEvidenceSection({
   complaint,
   loading
 }: {
-  complaint: Complaint;
+  complaint: ExtendedComplaint;
   loading: boolean;
 }) {
   const evidenceFiles = useMemo(() => toEvidenceFiles(complaint), [complaint]);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [mediaLoading, setMediaLoading] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    console.log('Evidence:', complaint?.evidenceFiles);
+  }, [complaint]);
 
   useEffect(() => {
     const nextLoading: Record<string, boolean> = {};
@@ -75,7 +97,7 @@ function ComplaintEvidenceSection({
 
   return (
     <section className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Evidence</p>
+      <h3 className="text-sm font-semibold mb-2">EVIDENCE</h3>
 
       {loading ? (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -88,13 +110,13 @@ function ComplaintEvidenceSection({
           No evidence uploaded
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {evidenceFiles.map((file) => {
             const fileType = inferEvidenceType(file.url, file.type);
             const isLoading = mediaLoading[file.url];
 
             return (
-              <div key={file.url} className="space-y-2 rounded-xl border border-border bg-muted/20 p-2">
+              <div key={file.id} className="rounded-lg overflow-hidden border p-2">
                 {fileType === 'image' ? (
                   <button
                     type="button"
@@ -106,7 +128,7 @@ function ComplaintEvidenceSection({
                     <img
                       src={file.url}
                       alt={file.name ?? 'Evidence image'}
-                      className={`rounded-lg h-32 w-32 object-cover ${isLoading ? 'hidden' : ''}`}
+                      className={`h-32 w-full object-cover transition-transform duration-200 hover:scale-105 ${isLoading ? 'hidden' : ''}`}
                       onLoad={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
                       onError={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
                     />
@@ -118,7 +140,7 @@ function ComplaintEvidenceSection({
                     {isLoading ? <Skeleton className="h-36 w-full rounded-lg" /> : null}
                     <video
                       controls
-                      className={`w-64 max-w-full ${isLoading ? 'hidden' : ''}`}
+                      className={`w-full h-32 ${isLoading ? 'hidden' : ''}`}
                       onLoadedData={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
                       onError={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
                     >
@@ -133,16 +155,16 @@ function ComplaintEvidenceSection({
                     <iframe
                       src={file.url}
                       title={file.name ?? 'Evidence PDF'}
-                      className={`h-64 w-full ${isLoading ? 'hidden' : ''}`}
+                      className={`w-full h-40 ${isLoading ? 'hidden' : ''}`}
                       onLoad={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
                     />
                   </>
                 ) : null}
 
                 {fileType === 'other' ? (
-                  <Button asChild size="sm" variant="outline" className="w-full">
-                    <a href={file.url} target="_blank" rel="noreferrer">
-                      Download
+                  <Button asChild size="sm" variant="outline" className="w-full justify-start">
+                    <a href={file.url} target="_blank" rel="noreferrer" className="text-blue-500 underline">
+                      Download File
                     </a>
                   </Button>
                 ) : null}
@@ -192,7 +214,7 @@ export function AdminComplaintsPage() {
   const [statusFilter, setStatusFilter] = useState<ComplaintFilter>('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [draftStatuses, setDraftStatuses] = useState<Record<string, ManagedComplaintStatus>>({});
-  const [selectedComplaintId, setSelectedComplaintId] = useState<string | null>(null);
+  const [selectedComplaint, setSelectedComplaint] = useState<ExtendedComplaint | null>(null);
 
   useEffect(() => {
     setDraftStatuses(
@@ -225,16 +247,28 @@ export function AdminComplaintsPage() {
     });
   }, [adminSearchQuery, categoryFilter, complaints, statusFilter]);
 
-  const selectedComplaint = filteredComplaints.find((complaint) => complaint.trackingId === selectedComplaintId) ?? null;
   const activeCount = filteredComplaints.filter(
     (complaint) => complaint.status === 'SUBMITTED' || complaint.status === 'UNDER_REVIEW'
   ).length;
+
+  const handleSelectComplaint = (complaint: ExtendedComplaint) => {
+    console.log('Selected complaint:', complaint);
+    setSelectedComplaint((current) => (current?.trackingId === complaint.trackingId ? null : complaint));
+  };
+
+  useEffect(() => {
+    if (!selectedComplaint) return;
+    const freshComplaint = complaints.find((complaint) => complaint.trackingId === selectedComplaint.trackingId);
+    if (freshComplaint) {
+      setSelectedComplaint(freshComplaint as ExtendedComplaint);
+    }
+  }, [complaints, selectedComplaint]);
 
   const clearFilters = () => {
     setAdminSearchQuery('');
     setStatusFilter('ALL');
     setCategoryFilter('ALL');
-    setSelectedComplaintId(null);
+    setSelectedComplaint(null);
   };
 
   return (
@@ -353,7 +387,7 @@ export function AdminComplaintsPage() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => setSelectedComplaintId(selectedComplaintId === complaint.trackingId ? null : complaint.trackingId)}
+                            onClick={() => handleSelectComplaint(complaint as ExtendedComplaint)}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
