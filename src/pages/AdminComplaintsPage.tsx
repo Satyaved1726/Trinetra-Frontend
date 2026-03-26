@@ -216,24 +216,33 @@ export function AdminComplaintsPage() {
   const [draftStatuses, setDraftStatuses] = useState<Record<string, ManagedComplaintStatus>>({});
   const [selectedComplaint, setSelectedComplaint] = useState<ExtendedComplaint | null>(null);
 
+  const safeComplaints = useMemo(() => {
+    if (!Array.isArray(complaints)) {
+      console.warn('Complaints is not an array:', complaints);
+      return [];
+    }
+
+    return complaints.map((complaint) => ({ ...complaint }));
+  }, [complaints]);
+
   useEffect(() => {
     setDraftStatuses(
-      complaints.reduce<Record<string, ManagedComplaintStatus>>((accumulator, complaint) => {
+      safeComplaints.reduce<Record<string, ManagedComplaintStatus>>((accumulator, complaint) => {
         accumulator[complaint.trackingId] = nextManagedStatus(complaint.status);
         return accumulator;
       }, {})
     );
-  }, [complaints]);
+  }, [safeComplaints]);
 
   const categoryOptions = useMemo(
-    () => Array.from(new Set(complaints.map((complaint) => complaint.category))).sort((left, right) => left.localeCompare(right)),
-    [complaints]
+    () => Array.from(new Set(safeComplaints.map((complaint) => complaint.category))).sort((left, right) => left.localeCompare(right)),
+    [safeComplaints]
   );
 
   const filteredComplaints = useMemo(() => {
     const searchValue = adminSearchQuery.trim().toLowerCase();
 
-    return complaints.filter((complaint) => {
+    return safeComplaints.filter((complaint) => {
       const matchesSearch =
         !searchValue ||
         [complaint.trackingId, complaint.title, complaint.category, complaint.status, complaint.description ?? '']
@@ -245,7 +254,7 @@ export function AdminComplaintsPage() {
 
       return matchesSearch && matchesStatus && matchesCategory;
     });
-  }, [adminSearchQuery, categoryFilter, complaints, statusFilter]);
+  }, [adminSearchQuery, categoryFilter, safeComplaints, statusFilter]);
 
   const activeCount = filteredComplaints.filter(
     (complaint) => complaint.status === 'SUBMITTED' || complaint.status === 'UNDER_REVIEW'
@@ -258,11 +267,11 @@ export function AdminComplaintsPage() {
 
   useEffect(() => {
     if (!selectedComplaint) return;
-    const freshComplaint = complaints.find((complaint) => complaint.trackingId === selectedComplaint.trackingId);
+    const freshComplaint = safeComplaints.find((complaint) => complaint.trackingId === selectedComplaint.trackingId);
     if (freshComplaint) {
       setSelectedComplaint(freshComplaint as ExtendedComplaint);
     }
-  }, [complaints, selectedComplaint]);
+  }, [safeComplaints, selectedComplaint]);
 
   const clearFilters = () => {
     setAdminSearchQuery('');

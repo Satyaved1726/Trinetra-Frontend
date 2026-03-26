@@ -14,8 +14,14 @@ export function useAdminComplaints() {
     try {
       setLoading(true);
       const response = await adminService.getAllComplaints();
-      setComplaints(response);
+      console.log('API Response:', response);
+      if (!Array.isArray(response)) {
+        console.warn('Complaints is not an array:', response);
+      }
+      setComplaints(Array.isArray(response) ? response : []);
     } catch (error) {
+      console.error('Error fetching complaints:', error);
+      setComplaints([]);
       if (error instanceof ApiError && error.status === 403) {
         toast.error('Admin access denied for complaints API. Please login with an admin account.');
       } else {
@@ -35,7 +41,7 @@ export function useAdminComplaints() {
       setUpdatingId(complaint.trackingId);
       const updated = await adminService.updateComplaintStatus(complaint, status);
       setComplaints((current) =>
-        current.map((item) =>
+        (Array.isArray(current) ? current : []).map((item) =>
           item.trackingId === complaint.trackingId
             ? {
                 ...item,
