@@ -16,6 +16,168 @@ const complaintFilters = ['ALL', 'SUBMITTED', ...statusOptions] as const;
 
 type ComplaintFilter = (typeof complaintFilters)[number];
 
+type EvidenceFileItem = {
+  url: string;
+  type?: string;
+  name?: string;
+};
+
+function inferEvidenceType(fileUrl: string, fileType?: string) {
+  const value = (fileType ?? fileUrl).toLowerCase();
+  if (value.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fileUrl)) return 'image';
+  if (value.startsWith('video/') || /\.(mp4|webm|ogg|mov|m4v)$/i.test(fileUrl)) return 'video';
+  if (value.includes('pdf') || /\.pdf$/i.test(fileUrl)) return 'pdf';
+  return 'other';
+}
+
+function toEvidenceFiles(complaint: Complaint): EvidenceFileItem[] {
+  const files = (complaint as Complaint & { evidenceFiles?: Array<{ url: string; type?: string; name?: string }> }).evidenceFiles;
+  if (Array.isArray(files) && files.length > 0) {
+    return files.filter((item) => typeof item?.url === 'string' && item.url.length > 0);
+  }
+
+  if (Array.isArray(complaint.evidence) && complaint.evidence.length > 0) {
+    return complaint.evidence
+      .filter((item) => typeof item?.url === 'string' && item.url.length > 0)
+      .map((item) => ({
+        url: item.url,
+        type: item.mimeType,
+        name: item.name
+      }));
+  }
+
+  if (complaint.evidenceUrl) {
+    return [{ url: complaint.evidenceUrl }];
+  }
+
+  return [];
+}
+
+function ComplaintEvidenceSection({
+  complaint,
+  loading
+}: {
+  complaint: Complaint;
+  loading: boolean;
+}) {
+  const evidenceFiles = useMemo(() => toEvidenceFiles(complaint), [complaint]);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [mediaLoading, setMediaLoading] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const nextLoading: Record<string, boolean> = {};
+    evidenceFiles.forEach((file) => {
+      const type = inferEvidenceType(file.url, file.type);
+      nextLoading[file.url] = type !== 'other';
+    });
+    setMediaLoading(nextLoading);
+  }, [evidenceFiles]);
+
+  return (
+    <section className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Evidence</p>
+
+      {loading ? (
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          <Skeleton className="h-32 w-full rounded-lg" />
+          <Skeleton className="h-32 w-full rounded-lg" />
+          <Skeleton className="h-32 w-full rounded-lg" />
+        </div>
+      ) : evidenceFiles.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
+          No evidence uploaded
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          {evidenceFiles.map((file) => {
+            const fileType = inferEvidenceType(file.url, file.type);
+            const isLoading = mediaLoading[file.url];
+
+            return (
+              <div key={file.url} className="space-y-2 rounded-xl border border-border bg-muted/20 p-2">
+                {fileType === 'image' ? (
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => setPreviewImageUrl(file.url)}
+                    aria-label="Preview evidence image"
+                  >
+                    {isLoading ? <Skeleton className="h-32 w-32 rounded-lg" /> : null}
+                    <img
+                      src={file.url}
+                      alt={file.name ?? 'Evidence image'}
+                      className={`rounded-lg h-32 w-32 object-cover ${isLoading ? 'hidden' : ''}`}
+                      onLoad={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
+                      onError={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
+                    />
+                  </button>
+                ) : null}
+
+                {fileType === 'video' ? (
+                  <>
+                    {isLoading ? <Skeleton className="h-36 w-full rounded-lg" /> : null}
+                    <video
+                      controls
+                      className={`w-64 max-w-full ${isLoading ? 'hidden' : ''}`}
+                      onLoadedData={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
+                      onError={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
+                    >
+                      <source src={file.url} />
+                    </video>
+                  </>
+                ) : null}
+
+                {fileType === 'pdf' ? (
+                  <>
+                    {isLoading ? <Skeleton className="h-64 w-full rounded-lg" /> : null}
+                    <iframe
+                      src={file.url}
+                      title={file.name ?? 'Evidence PDF'}
+                      className={`h-64 w-full ${isLoading ? 'hidden' : ''}`}
+                      onLoad={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
+                    />
+                  </>
+                ) : null}
+
+                {fileType === 'other' ? (
+                  <Button asChild size="sm" variant="outline" className="w-full">
+                    <a href={file.url} target="_blank" rel="noreferrer">
+                      Download
+                    </a>
+                  </Button>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {previewImageUrl ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 rounded-full bg-background/80 px-3 py-1 text-sm font-medium text-foreground"
+            onClick={() => setPreviewImageUrl(null)}
+          >
+            Close
+          </button>
+          <img
+            src={previewImageUrl}
+            alt="Evidence preview"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function statusVariant(status: string) {
   if (status === 'RESOLVED') return 'success';
   if (status === 'REJECTED') return 'destructive';
@@ -279,6 +441,8 @@ export function AdminComplaintsPage() {
                   {selectedComplaint.anonymous ? 'Anonymous' : 'Identified'}
                 </Badge>
               </div>
+
+              <ComplaintEvidenceSection complaint={selectedComplaint} loading={loading} />
             </div>
           ) : (
             <div className="mt-6 rounded-2xl border border-dashed border-border bg-muted/30 px-5 py-10 text-center text-sm text-muted-foreground">
