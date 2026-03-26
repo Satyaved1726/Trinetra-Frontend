@@ -24,6 +24,19 @@ import { toApiError } from '@/services/httpClient';
 
 const pieColors = ['#38bdf8', '#22c55e', '#f59e0b', '#f43f5e', '#a78bfa', '#14b8a6'];
 
+function toNumber(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function ensureAnalyticsArray(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
 const emptyAnalytics: AdminAnalyticsResponse = {
   totalComplaints: 0,
   openComplaints: 0,
@@ -97,10 +110,17 @@ export function AdminAnalyticsPage() {
     setError(null);
 
     try {
-      const response = await adminService.getAnalytics();
+      const response = (await adminService.getAnalytics()) as unknown;
+      const data = (response && typeof response === 'object' ? response : {}) as Partial<AdminAnalyticsResponse>;
+
       setAnalytics({
-        ...emptyAnalytics,
-        ...response
+        totalComplaints: toNumber(data.totalComplaints),
+        openComplaints: toNumber(data.openComplaints),
+        resolvedComplaints: toNumber(data.resolvedComplaints),
+        anonymousComplaints: toNumber(data.anonymousComplaints),
+        complaintsByCategory: ensureAnalyticsArray(data.complaintsByCategory),
+        complaintsByStatus: ensureAnalyticsArray(data.complaintsByStatus),
+        complaintsOverTime: ensureAnalyticsArray(data.complaintsOverTime)
       });
     } catch (err) {
       setError(toApiError(err).message);

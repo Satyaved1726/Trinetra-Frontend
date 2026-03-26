@@ -23,7 +23,18 @@ export interface AdminAnalyticsResponse {
 }
 
 function toNumber(value: unknown) {
-  return typeof value === 'number' ? value : 0;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return 0;
 }
 
 function ensurePointArray(value: unknown): AdminAnalyticsPoint[] {
@@ -49,10 +60,18 @@ function normalizeComplaintsPayload(payload: unknown): Complaint[] {
   if (Array.isArray(record.results)) return record.results as Complaint[];
 
   if (record.data && typeof record.data === 'object') {
-    const nested = record.data as { complaints?: unknown; items?: unknown; results?: unknown };
+    const nested = record.data as { complaints?: unknown; data?: unknown; items?: unknown; results?: unknown };
+    if (Array.isArray(nested.data)) return nested.data as Complaint[];
     if (Array.isArray(nested.complaints)) return nested.complaints as Complaint[];
     if (Array.isArray(nested.items)) return nested.items as Complaint[];
     if (Array.isArray(nested.results)) return nested.results as Complaint[];
+
+    if (nested.data && typeof nested.data === 'object') {
+      const nestedData = nested.data as { complaints?: unknown; items?: unknown; results?: unknown };
+      if (Array.isArray(nestedData.complaints)) return nestedData.complaints as Complaint[];
+      if (Array.isArray(nestedData.items)) return nestedData.items as Complaint[];
+      if (Array.isArray(nestedData.results)) return nestedData.results as Complaint[];
+    }
   }
 
   return [];
@@ -72,7 +91,11 @@ function normalizeAnalyticsPayload(payload: unknown): AdminAnalyticsResponse {
   if (!payload || typeof payload !== 'object') return fallback;
 
   const root = payload as Record<string, unknown>;
-  const source = (root.data && typeof root.data === 'object' ? (root.data as Record<string, unknown>) : root) as Record<string, unknown>;
+  const levelOne = (root.data && typeof root.data === 'object' ? (root.data as Record<string, unknown>) : root) as Record<string, unknown>;
+  const source =
+    levelOne.data && typeof levelOne.data === 'object'
+      ? (levelOne.data as Record<string, unknown>)
+      : levelOne;
 
   return {
     totalComplaints: toNumber(source.totalComplaints),
