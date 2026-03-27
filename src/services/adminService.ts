@@ -39,6 +39,36 @@ export interface AdminAnalyticsResponse {
   complaintsByStatus: AdminAnalyticsPoint[];
 }
 
+const EMPTY_ANALYTICS: AdminAnalyticsResponse = {
+  totalComplaints: 0,
+  openComplaints: 0,
+  resolvedComplaints: 0,
+  rejectedComplaints: 0,
+  anonymousComplaints: 0,
+  identifiedComplaints: 0,
+  complaintsOverTime: [],
+  complaintsByCategory: [],
+  complaintsByStatus: []
+};
+
+function unwrapNestedData(payload: unknown): unknown {
+  let current = payload;
+
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      break;
+    }
+
+    if (!('data' in current)) {
+      break;
+    }
+
+    current = (current as { data?: unknown }).data;
+  }
+
+  return current;
+}
+
 function toNumber(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -67,18 +97,30 @@ function ensurePointArray(value: unknown): AdminAnalyticsPoint[] {
 }
 
 function normalizeComplaintsPayload(payload: unknown): Complaint[] {
-  if (Array.isArray(payload)) return payload as Complaint[];
-  if (!payload || typeof payload !== 'object') return [];
+  const unwrappedPayload = unwrapNestedData(payload);
 
-  const record = payload as { complaints?: unknown; data?: unknown; content?: unknown; items?: unknown; results?: unknown };
+  if (Array.isArray(unwrappedPayload)) return unwrappedPayload as Complaint[];
+  if (!unwrappedPayload || typeof unwrappedPayload !== 'object') return [];
+
+  const record = unwrappedPayload as { complaints?: unknown; data?: unknown; content?: unknown; items?: unknown; results?: unknown };
   if (Array.isArray(record.complaints)) return record.complaints as Complaint[];
   if (Array.isArray(record.data)) return record.data as Complaint[];
   if (Array.isArray(record.content)) return record.content as Complaint[];
   if (Array.isArray(record.items)) return record.items as Complaint[];
   if (Array.isArray(record.results)) return record.results as Complaint[];
 
-  if (record.data && typeof record.data === 'object') {
-    const nested = record.data as {
+  if (Array.isArray(payload)) return payload as Complaint[];
+  if (!payload || typeof payload !== 'object') return [];
+
+  const root = payload as { complaints?: unknown; data?: unknown; content?: unknown; items?: unknown; results?: unknown };
+  if (Array.isArray(root.complaints)) return root.complaints as Complaint[];
+  if (Array.isArray(root.data)) return root.data as Complaint[];
+  if (Array.isArray(root.content)) return root.content as Complaint[];
+  if (Array.isArray(root.items)) return root.items as Complaint[];
+  if (Array.isArray(root.results)) return root.results as Complaint[];
+
+  if (root.data && typeof root.data === 'object') {
+    const nested = root.data as {
       complaints?: unknown;
       data?: unknown;
       content?: unknown;
@@ -92,8 +134,9 @@ function normalizeComplaintsPayload(payload: unknown): Complaint[] {
     if (Array.isArray(nested.results)) return nested.results as Complaint[];
 
     if (nested.data && typeof nested.data === 'object') {
-      const nestedData = nested.data as { complaints?: unknown; items?: unknown; results?: unknown };
+      const nestedData = nested.data as { complaints?: unknown; data?: unknown; items?: unknown; results?: unknown };
       if (Array.isArray(nestedData.complaints)) return nestedData.complaints as Complaint[];
+      if (Array.isArray(nestedData.data)) return nestedData.data as Complaint[];
       if (Array.isArray(nestedData.items)) return nestedData.items as Complaint[];
       if (Array.isArray(nestedData.results)) return nestedData.results as Complaint[];
     }
@@ -103,21 +146,15 @@ function normalizeComplaintsPayload(payload: unknown): Complaint[] {
 }
 
 function normalizeAnalyticsPayload(payload: unknown): AdminAnalyticsResponse {
-  const fallback: AdminAnalyticsResponse = {
-    totalComplaints: 0,
-    openComplaints: 0,
-    resolvedComplaints: 0,
-    rejectedComplaints: 0,
-    anonymousComplaints: 0,
-    identifiedComplaints: 0,
-    complaintsOverTime: [],
-    complaintsByCategory: [],
-    complaintsByStatus: []
-  };
+  const unwrappedPayload = unwrapNestedData(payload);
+
+  if (!unwrappedPayload || typeof unwrappedPayload !== 'object') return EMPTY_ANALYTICS;
+
+  const fallback: AdminAnalyticsResponse = EMPTY_ANALYTICS;
 
   if (!payload || typeof payload !== 'object') return fallback;
 
-  const root = payload as Record<string, unknown>;
+  const root = unwrappedPayload as Record<string, unknown>;
   const levelOne =
     (root.data && typeof root.data === 'object' ? (root.data as Record<string, unknown>) :
       root.content && typeof root.content === 'object' ? (root.content as Record<string, unknown>) :
@@ -153,15 +190,20 @@ export const adminService = {
       q: query?.search
     };
 
-    const payload = await requestWithFallback<unknown>([
-      () => apiClient.get('/api/admin/complaints', { params }),
-      () => apiClient.get('/api/complaints', { params }),
-      () => apiClient.get('/admin/complaints', { params }),
-      () => apiClient.get('/complaints/all', { params }),
-      () => apiClient.get('/complaints', { params })
-    ]);
+    try {
+      const payload = await requestWithFallback<unknown>([
+        () => apiClient.get('/api/admin/complaints', { params }),
+        () => apiClient.get('/api/complaints', { params }),
+        () => apiClient.get('/admin/complaints', { params }),
+        () => apiClient.get('/complaints/all', { params }),
+        () => apiClient.get('/complaints', { params })
+      ]);
 
-    return normalizeComplaintsPayload(payload);
+      return normalizeComplaintsPayload(payload);
+    } catch (error) {
+      console.error('API ERROR:', error);
+      return [];
+    }
   },
 
   async getComplaintById(id: string) {
@@ -246,7 +288,14 @@ export const adminService = {
   },
 
   async getAnalytics() {
-    return apiClient.get<unknown>('/api/admin/analytics').then((response) => normalizeAnalyticsPayload(response.data));
+    try {
+      const response = await apiClient.get<unknown>('/api/admin/analytics');
+      const payload = (response.data as { data?: unknown })?.data ?? response.data;
+      return normalizeAnalyticsPayload(payload);
+    } catch (error) {
+      console.error('API ERROR:', error);
+      return EMPTY_ANALYTICS;
+    }
   },
 
   async getReports(query?: ReportQuery) {
@@ -257,12 +306,17 @@ export const adminService = {
       status: query?.status
     };
 
-    const payload = await requestWithFallback<unknown>([
-      () => apiClient.get('/api/admin/reports', { params }),
-      () => apiClient.get('/admin/reports', { params })
-    ]);
+    try {
+      const payload = await requestWithFallback<unknown>([
+        () => apiClient.get('/api/admin/reports', { params }),
+        () => apiClient.get('/admin/reports', { params })
+      ]);
 
-    return normalizeComplaintsPayload(payload);
+      return normalizeComplaintsPayload(payload);
+    } catch (error) {
+      console.error('API ERROR:', error);
+      return [];
+    }
   },
 
   async exportReportsCSV(query?: ReportQuery): Promise<void> {
