@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { adminService } from '@/services/adminService';
-import { toApiError } from '@/services/httpClient';
+import { apiClient as api, toApiError } from '@/services/httpClient';
 import { formatDate, formatStatus } from '@/utils/formatters';
 import type { Complaint, ComplaintNote, ComplaintPriority, ManagedComplaintStatus } from '@/types/complaint';
 
@@ -247,7 +247,7 @@ export function AdminComplaintDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
-  const [statusDropdown, setStatusDropdown] = useState<ManagedComplaintStatus | ''>('');
+  const [status, setStatus] = useState<Complaint['status']>('SUBMITTED');
   const [noteInput, setNoteInput] = useState('');
   const [officer, setOfficer] = useState('');
   const [noteHistory, setNoteHistory] = useState<ComplaintNote[]>([]);
@@ -260,82 +260,75 @@ export function AdminComplaintDetailPage() {
   const videoEvidence = evidence.filter(e => e.type === 'video');
   const otherEvidence = evidence.filter(e => e.type === 'other');
 
-  useEffect(() => {
+  const fetchComplaint = async () => {
     if (!id) return;
 
-    const fetchComplaint = async () => {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await api.get(`/api/admin/complaints/${id}`);
+      const data = ((res.data as { data?: unknown })?.data ?? res.data) as Complaint | null;
+
+      if (!data) {
+        setError('Complaint not found');
+        setComplaint(null);
+        return;
+      }
+
+      setComplaint(data);
+      setStatus(data.status || 'SUBMITTED');
+      setOfficer(data.assignedOfficer || '');
+
+      const initialNotes = Array.isArray(data.notes)
+        ? data.notes
+        : Array.isArray(data.comments)
+          ? data.comments.map((comment, index) => ({
+              id: comment.id ?? `comment-${index}`,
+              note: comment.message,
+              createdAt: comment.createdAt,
+              createdBy: comment.author
+            }))
+          : [];
+      setNoteHistory(initialNotes);
 
       try {
-        const data = await adminService.getComplaintById(id);
-        if (!data) {
-          setError('Complaint not found');
-          return;
+        const fetchedNotes = await adminService.getComplaintNotes(data);
+        if (fetchedNotes.length > 0) {
+          setNoteHistory(fetchedNotes);
         }
-        setComplaint(data);
-        setStatusDropdown((data.status as ManagedComplaintStatus) || '');
-        setOfficer(data.assignedOfficer || '');
-        const initialNotes = Array.isArray(data.notes)
-          ? data.notes
-          : Array.isArray(data.comments)
-            ? data.comments.map((comment, index) => ({
-                id: comment.id ?? `comment-${index}`,
-                note: comment.message,
-                createdAt: comment.createdAt,
-                createdBy: comment.author
-              }))
-            : [];
-        setNoteHistory(initialNotes);
-
-        try {
-          const fetchedNotes = await adminService.getComplaintNotes(data);
-          if (fetchedNotes.length > 0) {
-            setNoteHistory(fetchedNotes);
-          }
-        } catch {
-          // Keep inline notes fallback if dedicated notes endpoint is unavailable.
-        }
-      } catch (err) {
-        const apiError = toApiError(err);
-        setError(apiError.message);
-        toast.error('Failed to load complaint', { description: apiError.message });
-      } finally {
-        setLoading(false);
+      } catch {
+        // Keep inline notes fallback if dedicated notes endpoint is unavailable.
       }
-    };
+    } catch (err) {
+      console.error('API ERROR:', err);
+      const apiError = toApiError(err);
+      setError(apiError.message);
+      setComplaint(null);
+      toast.error('Failed to load complaint', { description: apiError.message });
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     void fetchComplaint();
   }, [id]);
 
-  const handleStatusChange = async (newStatus: ManagedComplaintStatus) => {
-    if (!complaint || !newStatus || updating) return;
+  const updateStatus = async () => {
+    if (!complaint || !status || updating) return;
 
-    // Store previous status for rollback
-    const previousStatus = complaint.status as ManagedComplaintStatus;
-    
-    // Optimistic update - update UI immediately
-    setStatusDropdown(newStatus);
-    setComplaint(prev => prev ? { ...prev, status: newStatus } : null);
     setUpdating(true);
-
     try {
-      // Call API with the new status
-      const updated = await adminService.updateComplaintStatus(
-        { ...complaint, status: newStatus },
-        newStatus
-      );
-      
-      // Update with server response
-      setComplaint(updated);
+      await api.put(`/api/complaints/${encodeURIComponent(String(complaint.id ?? complaint.trackingId))}/status`, {
+        status
+      });
+
       toast.success('Status updated');
+      await fetchComplaint();
     } catch (err) {
-      // Rollback on error
-      setStatusDropdown(previousStatus);
-      setComplaint(prev => prev ? { ...prev, status: previousStatus } : null);
-      
-      const apiError = toApiError(err);
-      toast.error('Update failed', { description: apiError.message });
+      console.error(err);
+      toast.error('Update failed');
     } finally {
       setUpdating(false);
     }
@@ -401,7 +394,7 @@ export function AdminComplaintDetailPage() {
     }
   };
 
-  const currentStatusIndex = statusDropdown ? TIMELINE_STEPS.indexOf(statusDropdown as ManagedComplaintStatus) : -1;
+  const currentStatusIndex = status ? TIMELINE_STEPS.indexOf(status as ManagedComplaintStatus) : -1;
 
   if (loading) {
     return (
@@ -583,15 +576,22 @@ export function AdminComplaintDetailPage() {
               </label>
               <select
                 aria-label="Change complaint status"
-                value={statusDropdown}
-                onChange={(e) => handleStatusChange(e.target.value as ManagedComplaintStatus)}
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
                 disabled={updating}
                 className="w-full rounded-lg bg-slate-700/50 border border-slate-600 px-3 py-2 text-sm text-slate-200 transition-colors hover:border-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {(['UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'] as ManagedComplaintStatus[]).map(status => (
-                  <option key={status} value={status}>{formatStatus(status)}</option>
+                {(['SUBMITTED', 'UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'] as const).map((optionStatus) => (
+                  <option key={optionStatus} value={optionStatus}>{formatStatus(optionStatus)}</option>
                 ))}
               </select>
+              <Button
+                onClick={() => void updateStatus()}
+                disabled={updating || !complaint || status === complaint.status}
+                className="w-full mt-2 bg-blue-600 hover:bg-blue-700"
+              >
+                Save
+              </Button>
             </div>
 
             {/* Officer Assignment */}
@@ -766,7 +766,7 @@ export function AdminComplaintDetailPage() {
               key={step}
               step={step}
               index={index}
-              isActive={statusDropdown === step}
+              isActive={status === step}
               isCompleted={currentStatusIndex >= index && currentStatusIndex !== -1}
             />
           ))}
@@ -792,7 +792,7 @@ export function AdminComplaintDetailPage() {
         </div>
 
         <p className="text-xs text-slate-500 mt-16 text-center">
-          Current Status: <span className="text-slate-300 font-medium">{formatStatus(statusDropdown || complaint.status)}</span>
+          Current Status: <span className="text-slate-300 font-medium">{formatStatus(status || complaint.status)}</span>
         </p>
       </motion.div>
 

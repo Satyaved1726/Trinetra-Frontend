@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Eye, FileStack, RefreshCcw, SearchX } from 'lucide-react';
+import { Eye, RefreshCcw, SearchX } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import { EmptyStateIllustration } from '@/components/EmptyStateIllustration';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { DashboardOutletContext } from '@/layouts/DashboardLayout';
 import { useAdminComplaints } from '@/hooks/useAdminComplaints';
+import { apiClient as api } from '@/services/httpClient';
 import type { Complaint, ComplaintPriority, ManagedComplaintStatus } from '@/types/complaint';
 import { formatDate, formatStatus, nextManagedStatus } from '@/utils/formatters';
 
@@ -30,190 +31,6 @@ function priorityVariant(priority?: ComplaintPriority) {
   return 'secondary';
 }
 
-type ApiEvidenceFile = {
-  id?: string;
-  fileUrl: string;
-  fileType?: string;
-};
-
-type ExtendedComplaint = Complaint & {
-  evidenceFiles?: ApiEvidenceFile[];
-};
-
-type EvidenceFileItem = {
-  id: string;
-  url: string;
-  type?: string;
-  name?: string;
-};
-
-function inferEvidenceType(fileUrl: string, fileType?: string) {
-  const value = (fileType ?? fileUrl).toLowerCase();
-  if (value.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fileUrl)) return 'image';
-  if (value.startsWith('video/') || /\.(mp4|webm|ogg|mov|m4v)$/i.test(fileUrl)) return 'video';
-  if (value.includes('pdf') || /\.pdf$/i.test(fileUrl)) return 'pdf';
-  return 'other';
-}
-
-function toEvidenceFiles(complaint: ExtendedComplaint): EvidenceFileItem[] {
-  const files = complaint.evidenceFiles;
-  if (Array.isArray(files) && files.length > 0) {
-    return files
-      .filter((item) => typeof item?.fileUrl === 'string' && item.fileUrl.length > 0)
-      .map((item, index) => ({
-        id: item.id ?? `${item.fileUrl}-${index}`,
-        url: item.fileUrl,
-        type: item.fileType
-      }));
-  }
-
-  if (Array.isArray(complaint.evidence) && complaint.evidence.length > 0) {
-    return complaint.evidence
-      .filter((item) => typeof item?.url === 'string' && item.url.length > 0)
-      .map((item, index) => ({
-        id: item.id ?? `${item.url}-${index}`,
-        url: item.url,
-        type: item.mimeType,
-        name: item.name
-      }));
-  }
-
-  if (complaint.evidenceUrl) {
-    return [{ id: complaint.evidenceUrl, url: complaint.evidenceUrl }];
-  }
-
-  return [];
-}
-
-function ComplaintEvidenceSection({
-  complaint,
-  loading
-}: {
-  complaint: ExtendedComplaint;
-  loading: boolean;
-}) {
-  const evidenceFiles = useMemo(() => toEvidenceFiles(complaint), [complaint]);
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
-  const [mediaLoading, setMediaLoading] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    console.log('Evidence:', complaint?.evidenceFiles);
-  }, [complaint]);
-
-  useEffect(() => {
-    const nextLoading: Record<string, boolean> = {};
-    evidenceFiles.forEach((file) => {
-      const type = inferEvidenceType(file.url, file.type);
-      nextLoading[file.url] = type !== 'other';
-    });
-    setMediaLoading(nextLoading);
-  }, [evidenceFiles]);
-
-  return (
-    <section className="space-y-3">
-      <h3 className="text-sm font-semibold mb-2">EVIDENCE</h3>
-
-      {loading ? (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <Skeleton className="h-32 w-full rounded-lg" />
-          <Skeleton className="h-32 w-full rounded-lg" />
-          <Skeleton className="h-32 w-full rounded-lg" />
-        </div>
-      ) : evidenceFiles.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
-          No evidence uploaded
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {evidenceFiles.map((file) => {
-            const fileType = inferEvidenceType(file.url, file.type);
-            const isLoading = mediaLoading[file.url];
-
-            return (
-              <div key={file.id} className="rounded-lg overflow-hidden border p-2">
-                {fileType === 'image' ? (
-                  <button
-                    type="button"
-                    className="w-full text-left"
-                    onClick={() => setPreviewImageUrl(file.url)}
-                    aria-label="Preview evidence image"
-                  >
-                    {isLoading ? <Skeleton className="h-32 w-32 rounded-lg" /> : null}
-                    <img
-                      src={file.url}
-                      alt={file.name ?? 'Evidence image'}
-                      className={`h-32 w-full object-cover transition-transform duration-200 hover:scale-105 ${isLoading ? 'hidden' : ''}`}
-                      onLoad={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
-                      onError={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
-                    />
-                  </button>
-                ) : null}
-
-                {fileType === 'video' ? (
-                  <>
-                    {isLoading ? <Skeleton className="h-36 w-full rounded-lg" /> : null}
-                    <video
-                      controls
-                      className={`w-full h-32 ${isLoading ? 'hidden' : ''}`}
-                      onLoadedData={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
-                      onError={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
-                    >
-                      <source src={file.url} />
-                    </video>
-                  </>
-                ) : null}
-
-                {fileType === 'pdf' ? (
-                  <>
-                    {isLoading ? <Skeleton className="h-64 w-full rounded-lg" /> : null}
-                    <iframe
-                      src={file.url}
-                      title={file.name ?? 'Evidence PDF'}
-                      className={`w-full h-40 ${isLoading ? 'hidden' : ''}`}
-                      onLoad={() => setMediaLoading((current) => ({ ...current, [file.url]: false }))}
-                    />
-                  </>
-                ) : null}
-
-                {fileType === 'other' ? (
-                  <Button asChild size="sm" variant="outline" className="w-full justify-start">
-                    <a href={file.url} target="_blank" rel="noreferrer" className="text-blue-500 underline">
-                      Download File
-                    </a>
-                  </Button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {previewImageUrl ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setPreviewImageUrl(null)}
-        >
-          <button
-            type="button"
-            className="absolute right-4 top-4 rounded-full bg-background/80 px-3 py-1 text-sm font-medium text-foreground"
-            onClick={() => setPreviewImageUrl(null)}
-          >
-            Close
-          </button>
-          <img
-            src={previewImageUrl}
-            alt="Evidence preview"
-            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
-            onClick={(event) => event.stopPropagation()}
-          />
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
 function statusVariant(status: string) {
   if (status === 'RESOLVED') return 'success';
   if (status === 'REJECTED') return 'destructive';
@@ -225,7 +42,7 @@ function statusVariant(status: string) {
 export function AdminComplaintsPage() {
   const navigate = useNavigate();
   const { adminSearchQuery, setAdminSearchQuery, refreshAllAdminData, adminDataRefreshing } = useOutletContext<DashboardOutletContext>();
-  const { complaints, loading, updateComplaintStatus, updatingId } = useAdminComplaints();
+  const { complaints, loading, reload } = useAdminComplaints();
   const [statusFilter, setStatusFilter] = useState<ComplaintFilter>('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState<(typeof PRIORITY_OPTIONS)[number]>('ALL');
@@ -235,7 +52,8 @@ export function AdminComplaintsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [page, setPage] = useState(1);
   const [draftStatuses, setDraftStatuses] = useState<Record<string, ManagedComplaintStatus>>({});
-  const [selectedComplaint, setSelectedComplaint] = useState<ExtendedComplaint | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [statusUpdatedAlert, setStatusUpdatedAlert] = useState<string | null>(null);
 
   const safeComplaints = useMemo(() => (Array.isArray(complaints) ? complaints.map((complaint) => ({ ...complaint })) : []), [complaints]);
@@ -312,19 +130,6 @@ export function AdminComplaintsPage() {
     (complaint) => complaint.status === 'SUBMITTED' || complaint.status === 'UNDER_REVIEW'
   ).length;
 
-  const handleSelectComplaint = (complaint: ExtendedComplaint) => {
-    console.log('Selected complaint:', complaint);
-    setSelectedComplaint((current) => (current?.trackingId === complaint.trackingId ? null : complaint));
-  };
-
-  useEffect(() => {
-    if (!selectedComplaint) return;
-    const freshComplaint = safeComplaints.find((complaint) => complaint.trackingId === selectedComplaint.trackingId);
-    if (freshComplaint) {
-      setSelectedComplaint(freshComplaint as ExtendedComplaint);
-    }
-  }, [safeComplaints, selectedComplaint]);
-
   const clearFilters = () => {
     setAdminSearchQuery('');
     setStatusFilter('ALL');
@@ -335,7 +140,6 @@ export function AdminComplaintsPage() {
     setSortField('createdAt');
     setSortDirection('desc');
     setPage(1);
-    setSelectedComplaint(null);
   };
 
   useEffect(() => {
@@ -446,9 +250,9 @@ export function AdminComplaintsPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.85fr)]">
-        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-          <div className="border-b border-border px-6 py-4">
+      <div className="w-full">
+        <div className="w-full rounded-xl border border-border bg-card shadow-lg p-5">
+          <div className="border-b border-border px-4 pb-4">
             <h2 className="font-semibold text-card-foreground">Complaint Queue</h2>
             <p className="mt-1 text-xs text-muted-foreground">Use the shared navbar search plus queue filters to narrow complaints quickly.</p>
           </div>
@@ -466,10 +270,10 @@ export function AdminComplaintsPage() {
               description="Try adjusting your search and filters to find matching complaints."
             />
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto mt-3">
               <table className="w-full text-sm">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="border-b border-border bg-muted/70 backdrop-blur">
+                  <thead className="sticky top-0 z-20 shadow-sm">
+                    <tr className="border-b border-border bg-muted/90 backdrop-blur supports-[backdrop-filter]:bg-muted/75">
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tracking ID</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Title</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hidden md:table-cell">Category</th>
@@ -482,9 +286,17 @@ export function AdminComplaintsPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {paginatedComplaints.map((complaint) => (
-                    <tr key={complaint.trackingId} className="hover:bg-muted/30 transition-colors">
+                    <tr
+                      key={complaint.trackingId}
+                      onClick={() => setSelectedRowId(complaint.trackingId)}
+                      className={`cursor-pointer transition-all ${
+                        selectedRowId === complaint.trackingId
+                          ? 'bg-primary/10 ring-1 ring-inset ring-primary/30'
+                          : 'hover:bg-muted/40'
+                      }`}
+                    >
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">{complaint.trackingId}</td>
-                      <td className="px-4 py-3 max-w-[260px]">
+                      <td className="px-4 py-3 max-w-[320px]">
                         <p className="truncate font-medium text-foreground">{complaint.title}</p>
                       </td>
                       <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{complaint.category}</td>
@@ -511,13 +323,17 @@ export function AdminComplaintsPage() {
                             size="icon"
                             className="h-8 w-8"
                             title="View full complaint details"
-                            onClick={() => navigate(`/admin/complaints/${complaint.id || complaint.trackingId}`)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/admin/complaints/${complaint.id || complaint.trackingId}`);
+                            }}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
                           <select
                             aria-label={`Select next status for ${complaint.trackingId}`}
                             value={draftStatuses[complaint.trackingId] ?? nextManagedStatus(complaint.status)}
+                            onClick={(event) => event.stopPropagation()}
                             onChange={(event) =>
                               setDraftStatuses((current) => ({
                                 ...current,
@@ -536,18 +352,32 @@ export function AdminComplaintsPage() {
                             size="sm"
                             variant="outline"
                             className="h-8 text-xs"
-                            disabled={updatingId === complaint.trackingId}
-                            onClick={() => {
+                            disabled={savingId === complaint.trackingId}
+                            onClick={(event) => {
+                              event.stopPropagation();
                               void (async () => {
                                 const next = draftStatuses[complaint.trackingId] ?? nextManagedStatus(complaint.status);
-                                await updateComplaintStatus(complaint, next);
-                                setStatusUpdatedAlert(`Status updated for ${complaint.trackingId}`);
-                                toast.success('Status updated');
-                                window.setTimeout(() => setStatusUpdatedAlert(null), 3500);
+                                const complaintId = complaint.id ?? complaint.trackingId;
+                                setSavingId(complaint.trackingId);
+                                try {
+                                  await api.put(`/api/complaints/${encodeURIComponent(String(complaintId))}/status`, {
+                                    status: next
+                                  });
+
+                                  toast.success('Status updated');
+                                  await reload({ silent: true });
+                                  setStatusUpdatedAlert(`Status updated for ${complaint.trackingId}`);
+                                  window.setTimeout(() => setStatusUpdatedAlert(null), 3500);
+                                } catch (error) {
+                                  console.error('API ERROR:', error);
+                                  toast.error('Update failed');
+                                } finally {
+                                  setSavingId(null);
+                                }
                               })();
                             }}
                           >
-                            {updatingId === complaint.trackingId ? 'Saving…' : 'Save'}
+                            {savingId === complaint.trackingId ? 'Saving…' : 'Save'}
                           </Button>
                         </div>
                       </td>
@@ -588,59 +418,6 @@ export function AdminComplaintsPage() {
             </div>
           )}
         </div>
-
-        <motion.aside
-          initial={{ opacity: 0, x: 12 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="rounded-2xl border border-border bg-card p-6 shadow-sm"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <FileStack className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">Inspector</p>
-              <h2 className="font-semibold text-foreground">Complaint detail</h2>
-            </div>
-          </div>
-
-          {selectedComplaint ? (
-            <div className="mt-6 space-y-5">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">{selectedComplaint.title}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{selectedComplaint.description || 'No description provided.'}</p>
-              </div>
-
-              <div className="grid gap-3 rounded-2xl bg-muted/40 p-4 text-sm">
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Tracking ID</p>
-                  <p className="mt-1 font-mono font-semibold text-foreground">{selectedComplaint.trackingId}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Category</p>
-                  <p className="mt-1 font-semibold text-foreground">{selectedComplaint.category}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Filed</p>
-                  <p className="mt-1 font-semibold text-foreground">{formatDate(selectedComplaint.createdAt)}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Badge variant={statusVariant(selectedComplaint.status)}>{formatStatus(selectedComplaint.status)}</Badge>
-                <Badge variant={selectedComplaint.anonymous ? 'warning' : 'secondary'}>
-                  {selectedComplaint.anonymous ? 'Anonymous' : 'Identified'}
-                </Badge>
-              </div>
-
-              <ComplaintEvidenceSection complaint={selectedComplaint} loading={loading} />
-            </div>
-          ) : (
-            <div className="mt-6 rounded-2xl border border-dashed border-border bg-muted/30 px-5 py-10 text-center text-sm text-muted-foreground">
-              Select a complaint from the queue to inspect its details.
-            </div>
-          )}
-        </motion.aside>
       </div>
     </div>
   );
