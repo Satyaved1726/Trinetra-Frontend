@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'https://trinetra-backend-lzk9.onrender.com';
+import { apiClient } from '@/services/httpClient';
 
 export interface ManagedAdmin {
   id: string;
@@ -28,40 +28,9 @@ function toManagedAdmin(input: unknown): ManagedAdmin {
   };
 }
 
-function getAuthHeaders() {
-  const token = window.localStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {})
-  };
-}
-
-async function parseResponse(response: Response) {
-  let payload: unknown = null;
-
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    const message =
-      typeof payload === 'object' && payload !== null && 'message' in payload
-        ? String((payload as { message?: string }).message ?? 'Request failed')
-        : 'Request failed';
-    throw new Error(message);
-  }
-
-  return payload;
-}
-
 export const superAdminService = {
   async getAdmins() {
-    const response = await fetch(`${API_BASE}/api/super-admin/admins`, {
-      headers: getAuthHeaders()
-    });
-    const data = await parseResponse(response);
+    const data = (await apiClient.get('/api/super-admin/admins')).data as unknown;
 
     if (Array.isArray(data)) {
       return data.map(toManagedAdmin);
@@ -76,16 +45,12 @@ export const superAdminService = {
   },
 
   async createAdmin(payload: CreateAdminPayload) {
-    const response = await fetch(`${API_BASE}/api/super-admin/create-admin`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
+    const data = (
+      await apiClient.post('/api/super-admin/create-admin', {
         email: payload.email,
         password: payload.password
       })
-    });
-
-    const data = await parseResponse(response);
+    ).data as unknown;
     if (typeof data === 'object' && data !== null && ('id' in data || 'email' in data || 'username' in data)) {
       return toManagedAdmin(data);
     }
@@ -98,19 +63,11 @@ export const superAdminService = {
       throw new Error('Re-enabling admins is not supported by the current backend API.');
     }
 
-    const response = await fetch(`${API_BASE}/api/super-admin/admin/${encodeURIComponent(adminId)}/disable`, {
-      method: 'PUT',
-      headers: getAuthHeaders()
-    });
-    const data = await parseResponse(response);
+    const data = (await apiClient.put(`/api/super-admin/admin/${encodeURIComponent(adminId)}/disable`)).data as unknown;
     return toManagedAdmin(data);
   },
 
   async deleteAdmin(adminId: string) {
-    const response = await fetch(`${API_BASE}/api/super-admin/admin/${encodeURIComponent(adminId)}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders()
-    });
-    await parseResponse(response);
+    await apiClient.delete(`/api/super-admin/admin/${encodeURIComponent(adminId)}`);
   }
 };

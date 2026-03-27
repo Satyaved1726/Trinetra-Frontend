@@ -26,11 +26,13 @@ export function getStoredToken() {
 export function setStoredToken(token: string) {
   window.localStorage.setItem(TOKEN_KEY, token);
   window.localStorage.setItem('trinetra_token', token);
+  axios.defaults.headers.common.Authorization = `Bearer ${token}`;
 }
 
 export function clearStoredToken() {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem('trinetra_token');
+  delete axios.defaults.headers.common.Authorization;
 }
 
 function mapStatusMessage(status?: number) {

@@ -14,10 +14,12 @@ export { ApiError, api, clearStoredToken, extractToken, setStoredToken, toApiErr
 export const authApi = {
   async adminLogin(payload: { email: string; password: string }) {
     const session = await authService.loginAdmin(payload);
+    setStoredToken(session.token);
     return { token: session.token, role: session.user.role, user: session.user };
   },
   async employeeLogin(payload: { email: string; password: string }) {
     const session = await authService.loginEmployee(payload);
+    setStoredToken(session.token);
     return { token: session.token, role: session.user.role, user: session.user };
   },
   register: authService.registerAdmin,
