@@ -53,6 +53,8 @@ function formatDateTime(value?: string) {
   return date.toLocaleString();
 }
 
+const safe = (value: unknown) => (value ? value.toString() : '');
+
 function priorityClass(priority?: ComplaintPriority) {
   if (priority === 'CRITICAL') return 'bg-red-500/20 text-red-300 border-red-400/20';
   if (priority === 'HIGH') return 'bg-orange-500/20 text-orange-300 border-orange-400/20';
@@ -268,7 +270,7 @@ export function AdminComplaintDetailPage() {
 
     try {
       const res = await api.get(`/api/admin/complaints/${id}`);
-      const data = (res.data as { data?: Complaint | null })?.data ?? null;
+      const data = (res.data as { data?: Complaint | null })?.data;
 
       if (!data) {
         setError('Complaint not found');
@@ -277,7 +279,7 @@ export function AdminComplaintDetailPage() {
       }
 
       setComplaint(data);
-      setStatus(data.status ?? 'UNDER_REVIEW');
+      setStatus(data.status === 'SUBMITTED' ? 'UNDER_REVIEW' : (data.status ?? 'UNDER_REVIEW'));
       setOfficer(data.assignedOfficer || '');
 
       const initialNotes = Array.isArray(data.notes)
@@ -458,7 +460,7 @@ export function AdminComplaintDetailPage() {
           className="lg:col-span-2 space-y-6"
         >
           {/* Details Card */}
-          <div className={`rounded-2xl border border-slate-700/50 bg-gradient-to-br ${STATUS_COLORS[complaint.status] || STATUS_COLORS['SUBMITTED']} p-6 backdrop-blur-sm`}>
+          <div className={`rounded-2xl border border-slate-700/50 bg-gradient-to-br ${STATUS_COLORS[complaint.status] || STATUS_COLORS['UNDER_REVIEW']} p-6 backdrop-blur-sm`}>
             <h2 className="text-lg font-semibold text-slate-100 mb-4">Complaint Details</h2>
 
             <div className="space-y-4">
@@ -470,7 +472,7 @@ export function AdminComplaintDetailPage() {
               {complaint.description && (
                 <div>
                   <p className="text-xs uppercase tracking-[0.12em] text-slate-400 mb-2">Description</p>
-                  <p className="text-sm text-slate-200 leading-relaxed">{complaint.description}</p>
+                  <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">{safe(complaint.description)}</p>
                 </div>
               )}
 
@@ -542,7 +544,7 @@ export function AdminComplaintDetailPage() {
               <div className="flex items-center gap-3 pt-2 border-t border-slate-700/50">
                 <Calendar className="h-4 w-4 text-slate-400" />
                 <div>
-                  <p className="text-xs uppercase tracking-[0.12em] text-slate-400">Submitted</p>
+                  <p className="text-xs uppercase tracking-[0.12em] text-slate-400">Created Date</p>
                   <p className="text-sm text-slate-200">{formatDateTime(complaint.createdAt)}</p>
                 </div>
               </div>
@@ -581,7 +583,7 @@ export function AdminComplaintDetailPage() {
                 disabled={updating}
                 className="w-full rounded-lg bg-slate-700/50 border border-slate-600 px-3 py-2 text-sm text-slate-200 transition-colors hover:border-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {(['SUBMITTED', 'UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'] as const).map((optionStatus) => (
+                {(['UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'] as const).map((optionStatus) => (
                   <option key={optionStatus} value={optionStatus}>{formatStatus(optionStatus)}</option>
                 ))}
               </select>
@@ -774,8 +776,8 @@ export function AdminComplaintDetailPage() {
 
         <div className="mt-10 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 text-xs text-slate-400">
-            <p className="uppercase tracking-[0.12em]">Submitted</p>
-            <p className="mt-1 text-slate-300">{formatDateTime(complaint.submittedAt ?? complaint.createdAt)}</p>
+            <p className="uppercase tracking-[0.12em]">Under Review</p>
+            <p className="mt-1 text-slate-300">{formatDateTime(complaint.underReviewAt ?? complaint.createdAt)}</p>
           </div>
           <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 text-xs text-slate-400">
             <p className="uppercase tracking-[0.12em]">Under Review</p>

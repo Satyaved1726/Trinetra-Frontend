@@ -229,14 +229,7 @@ export function AdminReportsPage() {
   const handleExportCSV = async () => {
     setExporting(true);
     try {
-      const query = new URLSearchParams();
-      if (filters.fromDate) query.set('from', filters.fromDate);
-      if (filters.toDate) query.set('to', filters.toDate);
-      if (filters.category) query.set('category', filters.category);
-      if (filters.status) query.set('status', filters.status);
-
-      const suffix = query.toString() ? `?${query.toString()}` : '';
-      window.open(`${API_URL}/api/admin/reports/export/csv${suffix}`, '_blank', 'noopener,noreferrer');
+      window.open(`${API_URL}/api/admin/reports/export/csv`, '_blank', 'noopener,noreferrer');
       toast.success('CSV exported successfully');
     } catch (err) {
       const apiError = toApiError(err);
@@ -249,14 +242,7 @@ export function AdminReportsPage() {
   const handleExportPDF = async () => {
     setExporting(true);
     try {
-      const query = new URLSearchParams();
-      if (filters.fromDate) query.set('from', filters.fromDate);
-      if (filters.toDate) query.set('to', filters.toDate);
-      if (filters.category) query.set('category', filters.category);
-      if (filters.status) query.set('status', filters.status);
-
-      const suffix = query.toString() ? `?${query.toString()}` : '';
-      window.open(`${API_URL}/api/admin/reports/export/pdf${suffix}`, '_blank', 'noopener,noreferrer');
+      window.open(`${API_URL}/api/admin/reports/export/pdf`, '_blank', 'noopener,noreferrer');
       toast.success('PDF exported successfully');
     } catch (err) {
       const apiError = toApiError(err);

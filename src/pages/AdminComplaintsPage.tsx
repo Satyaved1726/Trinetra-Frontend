@@ -15,7 +15,7 @@ import type { Complaint, ComplaintPriority, ManagedComplaintStatus } from '@/typ
 import { formatDate, formatStatus } from '@/utils/formatters';
 
 const statusOptions: ManagedComplaintStatus[] = ['UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'];
-const complaintFilters = ['ALL', 'SUBMITTED', ...statusOptions] as const;
+const complaintFilters = ['ALL', ...statusOptions] as const;
 
 type ComplaintFilter = (typeof complaintFilters)[number];
 type SortField = 'createdAt' | 'title' | 'status' | 'priority';
@@ -54,7 +54,7 @@ export function AdminComplaintsPage() {
     setStatusMap(
       safeComplaints.reduce<Record<string, Complaint['status']>>((accumulator, complaint) => {
         const key = String(complaint.id ?? complaint.trackingId);
-        accumulator[key] = complaint.status ?? 'UNDER_REVIEW';
+        accumulator[key] = complaint.status === 'SUBMITTED' ? 'UNDER_REVIEW' : complaint.status ?? 'UNDER_REVIEW';
         return accumulator;
       }, {})
     );
@@ -78,7 +78,8 @@ export function AdminComplaintsPage() {
 
   const getCurrentStatus = (complaint: Complaint) => {
     const key = String(complaint.id ?? complaint.trackingId);
-    return (statusMap[key] ?? complaint.status ?? 'UNDER_REVIEW') as Complaint['status'];
+    const selected = statusMap[key] ?? complaint.status ?? 'UNDER_REVIEW';
+    return (selected === 'SUBMITTED' ? 'UNDER_REVIEW' : selected) as Complaint['status'];
   };
 
   const categoryOptions = useMemo(
@@ -141,7 +142,7 @@ export function AdminComplaintsPage() {
   );
 
   const activeCount = filteredComplaints.filter(
-    (complaint) => complaint.status === 'SUBMITTED' || complaint.status === 'UNDER_REVIEW'
+    (complaint) => complaint.status === 'UNDER_REVIEW' || complaint.status === 'INVESTIGATING'
   ).length;
 
   const clearFilters = () => {

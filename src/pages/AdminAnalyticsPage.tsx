@@ -21,7 +21,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { adminQueryKeys } from '@/hooks/useAdminDashboardData';
 import type { DashboardOutletContext } from '@/layouts/DashboardLayout';
-import { adminService, type AdminAnalyticsResponse } from '@/services/adminService';
+import { apiClient as api } from '@/services/httpClient';
+import type { AdminAnalyticsResponse } from '@/services/adminService';
+import type { Complaint } from '@/types/complaint';
 
 const pieColors = ['#38bdf8', '#22c55e', '#f59e0b', '#f43f5e', '#a78bfa', '#14b8a6'];
 
@@ -36,6 +38,69 @@ const emptyAnalytics: AdminAnalyticsResponse = {
   complaintsByCategory: [],
   complaintsByStatus: []
 };
+
+function toCountMap(items: Complaint[], key: (item: Complaint) => string) {
+  return items.reduce<Record<string, number>>((accumulator, item) => {
+    const value = key(item) || 'Unknown';
+    accumulator[value] = (accumulator[value] ?? 0) + 1;
+    return accumulator;
+  }, {});
+}
+
+function mapComplaintListToAnalytics(items: Complaint[]): AdminAnalyticsResponse {
+  const totalComplaints = items.length;
+  const resolvedComplaints = items.filter((item) => item.status === 'RESOLVED').length;
+  const rejectedComplaints = items.filter((item) => item.status === 'REJECTED').length;
+  const openComplaints = items.filter(
+    (item) => item.status === 'UNDER_REVIEW' || item.status === 'INVESTIGATING'
+  ).length;
+  const anonymousComplaints = items.filter((item) => item.anonymous).length;
+  const identifiedComplaints = totalComplaints - anonymousComplaints;
+
+  const byCategory = toCountMap(items, (item) => item.category);
+  const byStatus = toCountMap(items, (item) => item.status);
+  const byDate = toCountMap(items, (item) => new Date(item.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }));
+
+  return {
+    totalComplaints,
+    openComplaints,
+    resolvedComplaints,
+    rejectedComplaints,
+    anonymousComplaints,
+    identifiedComplaints,
+    complaintsByCategory: Object.entries(byCategory).map(([label, count]) => ({ label, count })),
+    complaintsByStatus: Object.entries(byStatus).map(([label, count]) => ({ label, count })),
+    complaintsOverTime: Object.entries(byDate).map(([label, count]) => ({ label, count }))
+  };
+}
+
+function mapBackendAnalyticsPayload(payload: unknown): AdminAnalyticsResponse {
+  if (Array.isArray(payload)) {
+    return mapComplaintListToAnalytics(payload as Complaint[]);
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    return emptyAnalytics;
+  }
+
+  const source = (payload as { data?: unknown }).data ?? payload;
+  if (Array.isArray(source)) {
+    return mapComplaintListToAnalytics(source as Complaint[]);
+  }
+
+  const record = source as Record<string, unknown>;
+  return {
+    totalComplaints: Number(record.totalComplaints ?? 0),
+    openComplaints: Number(record.openComplaints ?? 0),
+    resolvedComplaints: Number(record.resolvedComplaints ?? 0),
+    rejectedComplaints: Number(record.rejectedComplaints ?? 0),
+    anonymousComplaints: Number(record.anonymousComplaints ?? 0),
+    identifiedComplaints: Number(record.identifiedComplaints ?? 0),
+    complaintsOverTime: Array.isArray(record.complaintsOverTime) ? (record.complaintsOverTime as AdminAnalyticsResponse['complaintsOverTime']) : [],
+    complaintsByCategory: Array.isArray(record.complaintsByCategory) ? (record.complaintsByCategory as AdminAnalyticsResponse['complaintsByCategory']) : [],
+    complaintsByStatus: Array.isArray(record.complaintsByStatus) ? (record.complaintsByStatus as AdminAnalyticsResponse['complaintsByStatus']) : []
+  };
+}
 
 interface KpiCardProps {
   title: string;
@@ -198,7 +263,10 @@ export function AdminAnalyticsPage() {
   const { refreshAllAdminData, adminDataRefreshing } = useOutletContext<DashboardOutletContext>();
   const analyticsQuery = useQuery({
     queryKey: adminQueryKeys.analytics,
-    queryFn: () => adminService.getAnalytics(),
+    queryFn: async () => {
+      const response = await api.get('/api/admin/analytics');
+      return mapBackendAnalyticsPayload(response.data);
+    },
     retry: 1,
     staleTime: 5 * 60 * 1000
   });
