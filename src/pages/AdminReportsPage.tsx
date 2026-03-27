@@ -499,8 +499,7 @@ export function AdminReportsPage() {
           Export CSV
         </Button>
         <Button
-          onClick={handleExportPDF}
-          disabled={exporting || filteredComplaints.length === 0}
+          disabled
           className="bg-red-600 hover:bg-red-700 text-white"
         >
           <Download className="mr-2 h-4 w-4" />

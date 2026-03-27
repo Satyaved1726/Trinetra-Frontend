@@ -320,7 +320,7 @@ export function AdminComplaintDetailPage() {
 
     setUpdating(true);
     try {
-      await api.put(`/api/complaints/${encodeURIComponent(String(complaint.id ?? complaint.trackingId))}/status`, {
+      await api.put(`/api/admin/complaints/${encodeURIComponent(String(complaint.id ?? complaint.trackingId))}/status`, {
         status
       });
 

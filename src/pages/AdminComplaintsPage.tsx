@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Eye, RefreshCcw, SearchX } from 'lucide-react';
+import { RefreshCcw, SearchX } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -12,9 +12,9 @@ import type { DashboardOutletContext } from '@/layouts/DashboardLayout';
 import { useAdminComplaints } from '@/hooks/useAdminComplaints';
 import { apiClient as api } from '@/services/httpClient';
 import type { Complaint, ComplaintPriority, ManagedComplaintStatus } from '@/types/complaint';
-import { formatDate, formatStatus, nextManagedStatus } from '@/utils/formatters';
+import { formatDate, formatStatus } from '@/utils/formatters';
 
-const statusOptions: ManagedComplaintStatus[] = ['UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'];
+const statusOptions: Array<'SUBMITTED' | ManagedComplaintStatus> = ['SUBMITTED', 'UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'];
 const complaintFilters = ['ALL', 'SUBMITTED', ...statusOptions] as const;
 
 type ComplaintFilter = (typeof complaintFilters)[number];
@@ -31,14 +31,6 @@ function priorityVariant(priority?: ComplaintPriority) {
   return 'secondary';
 }
 
-function statusVariant(status: string) {
-  if (status === 'RESOLVED') return 'success';
-  if (status === 'REJECTED') return 'destructive';
-  if (status === 'UNDER_REVIEW') return 'warning';
-  if (status === 'INVESTIGATING') return 'secondary';
-  return 'secondary';
-}
-
 export function AdminComplaintsPage() {
   const navigate = useNavigate();
   const { adminSearchQuery, setAdminSearchQuery, refreshAllAdminData, adminDataRefreshing } = useOutletContext<DashboardOutletContext>();
@@ -51,7 +43,7 @@ export function AdminComplaintsPage() {
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [page, setPage] = useState(1);
-  const [draftStatuses, setDraftStatuses] = useState<Record<string, ManagedComplaintStatus>>({});
+  const [statusMap, setStatusMap] = useState<Record<string, Complaint['status']>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [statusUpdatedAlert, setStatusUpdatedAlert] = useState<string | null>(null);
@@ -59,13 +51,30 @@ export function AdminComplaintsPage() {
   const safeComplaints = useMemo(() => (Array.isArray(complaints) ? complaints.map((complaint) => ({ ...complaint })) : []), [complaints]);
 
   useEffect(() => {
-    setDraftStatuses(
-      safeComplaints.reduce<Record<string, ManagedComplaintStatus>>((accumulator, complaint) => {
-        accumulator[complaint.trackingId] = nextManagedStatus(complaint.status);
+    setStatusMap(
+      safeComplaints.reduce<Record<string, Complaint['status']>>((accumulator, complaint) => {
+        const key = String(complaint.id ?? complaint.trackingId);
+        accumulator[key] = complaint.status || 'SUBMITTED';
         return accumulator;
       }, {})
     );
   }, [safeComplaints]);
+
+  const updateStatus = async (id: string, status: Complaint['status']) => {
+    try {
+      await api.put(`/api/admin/complaints/${encodeURIComponent(id)}/status`, {
+        status
+      });
+
+      toast.success('Status updated successfully');
+      await reload({ silent: true });
+      setStatusUpdatedAlert(`Status updated for ${id}`);
+      window.setTimeout(() => setStatusUpdatedAlert(null), 3500);
+    } catch (err) {
+      console.error(err);
+      toast.error('Update failed');
+    }
+  };
 
   const categoryOptions = useMemo(
     () => Array.from(new Set(safeComplaints.map((complaint) => complaint.category))).sort((left, right) => left.localeCompare(right)),
@@ -271,17 +280,17 @@ export function AdminComplaintsPage() {
             />
           ) : (
             <div className="overflow-x-auto mt-3">
-              <table className="w-full text-sm">
+              <table className="w-full table-auto text-sm">
                   <thead className="sticky top-0 z-20 shadow-sm">
                     <tr className="border-b border-border bg-muted/90 backdrop-blur supports-[backdrop-filter]:bg-muted/75">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tracking ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Title</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hidden md:table-cell">Category</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Priority</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reporter</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hidden xl:table-cell">Filed</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tracking ID</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Title</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hidden md:table-cell">Category</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Priority</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reporter</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hidden xl:table-cell">Filed</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -295,59 +304,53 @@ export function AdminComplaintsPage() {
                           : 'hover:bg-muted/40'
                       }`}
                     >
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">{complaint.trackingId}</td>
-                      <td className="px-4 py-3 max-w-[320px]">
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-semibold text-foreground">{complaint.trackingId}</td>
+                      <td className="whitespace-nowrap px-4 py-3 max-w-[320px]">
                         <p className="truncate font-medium text-foreground">{complaint.title}</p>
                       </td>
-                      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{complaint.category}</td>
-                      <td className="px-4 py-3">
+                      <td className="hidden whitespace-nowrap px-4 py-3 text-muted-foreground md:table-cell">{complaint.category}</td>
+                      <td className="whitespace-nowrap px-4 py-3">
                         <Badge variant={priorityVariant(complaint.priority)} className="text-[10px]">
                           {complaint.priority ?? 'LOW'}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         <Badge variant={complaint.anonymous ? 'warning' : 'secondary'} className="text-[10px]">
                           {complaint.anonymous ? 'Anonymous' : 'Identified'}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3">
-                        <Badge variant={statusVariant(complaint.status)} className="text-[10px]">
-                          {formatStatus(complaint.status)}
-                        </Badge>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <select
+                          aria-label={`Select next status for ${complaint.trackingId}`}
+                          value={statusMap[String(complaint.id ?? complaint.trackingId)] || complaint.status}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={(event) =>
+                            setStatusMap((current) => ({
+                              ...current,
+                              [String(complaint.id ?? complaint.trackingId)]: event.target.value as Complaint['status']
+                            }))
+                          }
+                          className="h-9 min-w-[150px] rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring transition"
+                        >
+                          {statusOptions.map((status) => (
+                            <option key={status} value={status}>
+                              {formatStatus(status)}
+                            </option>
+                          ))}
+                        </select>
                       </td>
-                      <td className="hidden px-4 py-3 text-xs text-muted-foreground xl:table-cell">{formatDate(complaint.createdAt)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="View full complaint details"
+                      <td className="hidden whitespace-nowrap px-4 py-3 text-xs text-muted-foreground xl:table-cell">{formatDate(complaint.createdAt)}</td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
                             onClick={(event) => {
                               event.stopPropagation();
                               navigate(`/admin/complaints/${complaint.id || complaint.trackingId}`);
                             }}
                           >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <select
-                            aria-label={`Select next status for ${complaint.trackingId}`}
-                            value={draftStatuses[complaint.trackingId] ?? nextManagedStatus(complaint.status)}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) =>
-                              setDraftStatuses((current) => ({
-                                ...current,
-                                [complaint.trackingId]: event.target.value as ManagedComplaintStatus
-                              }))
-                            }
-                            className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring transition"
-                          >
-                            {statusOptions.map((status) => (
-                              <option key={status} value={status}>
-                                {formatStatus(status)}
-                              </option>
-                            ))}
-                          </select>
+                            View
+                          </button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -356,24 +359,13 @@ export function AdminComplaintsPage() {
                             onClick={(event) => {
                               event.stopPropagation();
                               void (async () => {
-                                const next = draftStatuses[complaint.trackingId] ?? nextManagedStatus(complaint.status);
                                 const complaintId = complaint.id ?? complaint.trackingId;
                                 setSavingId(complaint.trackingId);
-                                try {
-                                  await api.put(`/api/complaints/${encodeURIComponent(String(complaintId))}/status`, {
-                                    status: next
-                                  });
+                                const key = String(complaintId);
+                                const next = statusMap[key] || complaint.status;
 
-                                  toast.success('Status updated');
-                                  await reload({ silent: true });
-                                  setStatusUpdatedAlert(`Status updated for ${complaint.trackingId}`);
-                                  window.setTimeout(() => setStatusUpdatedAlert(null), 3500);
-                                } catch (error) {
-                                  console.error('API ERROR:', error);
-                                  toast.error('Update failed');
-                                } finally {
-                                  setSavingId(null);
-                                }
+                                await updateStatus(key, next);
+                                setSavingId(null);
                               })();
                             }}
                           >
