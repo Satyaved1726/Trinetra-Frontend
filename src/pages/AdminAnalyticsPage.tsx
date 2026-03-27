@@ -265,6 +265,18 @@ export function AdminAnalyticsPage() {
     queryKey: adminQueryKeys.analytics,
     queryFn: async () => {
       const response = await api.get('/api/admin/analytics');
+      const directPayload = ((response.data as { data?: unknown })?.data ?? response.data) as unknown;
+      if (directPayload && typeof directPayload === 'object' && !Array.isArray(directPayload)) {
+        const directRecord = directPayload as Partial<AdminAnalyticsResponse>;
+        return {
+          ...emptyAnalytics,
+          ...directRecord,
+          complaintsOverTime: Array.isArray(directRecord.complaintsOverTime) ? directRecord.complaintsOverTime : [],
+          complaintsByCategory: Array.isArray(directRecord.complaintsByCategory) ? directRecord.complaintsByCategory : [],
+          complaintsByStatus: Array.isArray(directRecord.complaintsByStatus) ? directRecord.complaintsByStatus : []
+        };
+      }
+
       return mapBackendAnalyticsPayload(response.data);
     },
     retry: 1,

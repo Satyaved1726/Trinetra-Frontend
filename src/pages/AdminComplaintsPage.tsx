@@ -42,6 +42,7 @@ export function AdminComplaintsPage() {
   const navigate = useNavigate();
   const { adminSearchQuery, setAdminSearchQuery, refreshAllAdminData, adminDataRefreshing } = useOutletContext<DashboardOutletContext>();
   const { complaints, loading, reload } = useAdminComplaints();
+  const fetchComplaints = reload;
   const [statusFilter, setStatusFilter] = useState<ComplaintFilter>('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState<(typeof PRIORITY_OPTIONS)[number]>('ALL');
@@ -70,11 +71,11 @@ export function AdminComplaintsPage() {
   const updateStatus = async (id: string) => {
     try {
       const status = normalizeManagedStatus(statusMap[id]);
-      await api.put(`/api/admin/complaints/${encodeURIComponent(id)}/status`, {
+      await api.put(`/api/admin/complaints/${id}/status`, {
         status
       });
 
-      await reload({ silent: true });
+      await fetchComplaints({ silent: true });
       toast.success('Status updated successfully');
       setStatusUpdatedAlert(`Status updated for ${id}`);
       window.setTimeout(() => setStatusUpdatedAlert(null), 3500);
