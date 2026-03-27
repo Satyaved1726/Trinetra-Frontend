@@ -249,12 +249,14 @@ export function AdminReportsPage() {
   const handleExportPDF = async () => {
     setExporting(true);
     try {
-      await adminService.exportReportsPDF({
-        from: filters.fromDate,
-        to: filters.toDate,
-        category: filters.category || undefined,
-        status: filters.status || undefined
-      });
+      const query = new URLSearchParams();
+      if (filters.fromDate) query.set('from', filters.fromDate);
+      if (filters.toDate) query.set('to', filters.toDate);
+      if (filters.category) query.set('category', filters.category);
+      if (filters.status) query.set('status', filters.status);
+
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      window.open(`${API_URL}/api/admin/reports/export/pdf${suffix}`, '_blank', 'noopener,noreferrer');
       toast.success('PDF exported successfully');
     } catch (err) {
       const apiError = toApiError(err);
@@ -502,7 +504,8 @@ export function AdminReportsPage() {
           Export CSV
         </Button>
         <Button
-          disabled
+          onClick={handleExportPDF}
+          disabled={exporting || filteredComplaints.length === 0}
           className="bg-red-600 hover:bg-red-700 text-white"
         >
           <Download className="mr-2 h-4 w-4" />

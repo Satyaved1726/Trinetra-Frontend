@@ -1,7 +1,9 @@
 import type { Complaint, ComplaintStatus, ManagedComplaintStatus } from '@/types/complaint';
 
 export function formatStatus(status: ComplaintStatus) {
-  return status
+  const safeText = (text: unknown) => (text ? String(text) : '');
+
+  return safeText(status)
     .replaceAll('_', ' ')
     .toLowerCase()
     .replace(/(^|\s)\S/g, (character) => character.toUpperCase());

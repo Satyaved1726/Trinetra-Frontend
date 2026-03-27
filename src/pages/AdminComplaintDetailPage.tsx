@@ -247,7 +247,7 @@ export function AdminComplaintDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
-  const [status, setStatus] = useState<Complaint['status']>('UNKNOWN');
+  const [status, setStatus] = useState<Complaint['status']>('UNDER_REVIEW');
   const [noteInput, setNoteInput] = useState('');
   const [officer, setOfficer] = useState('');
   const [noteHistory, setNoteHistory] = useState<ComplaintNote[]>([]);
@@ -277,7 +277,7 @@ export function AdminComplaintDetailPage() {
       }
 
       setComplaint(data);
-      setStatus(data.status ?? 'UNKNOWN');
+      setStatus(data.status ?? 'UNDER_REVIEW');
       setOfficer(data.assignedOfficer || '');
 
       const initialNotes = Array.isArray(data.notes)
