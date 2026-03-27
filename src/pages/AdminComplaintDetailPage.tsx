@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowLeft, Calendar, ChevronRight, Eye, Mail, MessageSquare, Play, User, X, Upload, Send } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calendar, CheckCircle2, Eye, Mail, Play, SearchCheck, Send, Upload, User, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -15,6 +15,13 @@ import { formatDate, formatStatus } from '@/utils/formatters';
 import type { Complaint, ComplaintNote, ComplaintPriority, ManagedComplaintStatus } from '@/types/complaint';
 
 const TIMELINE_STEPS: ManagedComplaintStatus[] = ['UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'];
+
+const PROGRESS_STEPS = [
+  { key: 'SUBMITTED', label: 'Submitted', icon: CheckCircle2 },
+  { key: 'UNDER_REVIEW', label: 'Review', icon: SearchCheck },
+  { key: 'INVESTIGATING', label: 'Investigating', icon: SearchCheck },
+  { key: 'RESOLVED', label: 'Resolved', icon: CheckCircle2 }
+] as const;
 const STATUS_COLORS: Record<string, string> = {
   'SUBMITTED': 'from-blue-500/20 to-cyan-500/20',
   'UNDER_REVIEW': 'from-purple-500/20 to-purple-500/20',
@@ -37,6 +44,13 @@ function normalizeManagedStatus(status: Complaint['status'] | undefined): Manage
     return status;
   }
   return 'UNDER_REVIEW';
+}
+
+function statusToTimelineIndex(status: Complaint['status'] | undefined) {
+  const normalized = normalizeManagedStatus(status);
+  if (normalized === 'UNDER_REVIEW') return 1;
+  if (normalized === 'INVESTIGATING') return 2;
+  return 3;
 }
 
 function inferMediaType(fileUrl: string, fileType?: string): 'image' | 'video' | 'other' {
@@ -256,10 +270,14 @@ export function AdminComplaintDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
-  const [status, setStatus] = useState<Complaint['status']>('UNDER_REVIEW');
+  const [selectedStatus, setSelectedStatus] = useState<ManagedComplaintStatus>('UNDER_REVIEW');
   const [noteInput, setNoteInput] = useState('');
-  const [officer, setOfficer] = useState('');
+  const [admins, setAdmins] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedAdmin, setSelectedAdmin] = useState('');
   const [noteHistory, setNoteHistory] = useState<ComplaintNote[]>([]);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [assigningOfficer, setAssigningOfficer] = useState(false);
+  const [addingNote, setAddingNote] = useState(false);
 
   const [previewMedia, setPreviewMedia] = useState<EvidenceItem | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -269,10 +287,82 @@ export function AdminComplaintDetailPage() {
   const videoEvidence = evidence.filter(e => e.type === 'video');
   const otherEvidence = evidence.filter(e => e.type === 'other');
 
-  const fetchComplaint = async () => {
+  const parseCommentList = (payload: unknown): ComplaintNote[] => {
+    if (!Array.isArray(payload)) return [];
+
+    return payload.map((item, index) => {
+      const record = item as {
+        id?: string;
+        note?: string;
+        message?: string;
+        createdAt?: string;
+        created_at?: string;
+        author?: string;
+        createdBy?: string;
+      };
+
+      return {
+        id: record.id ?? `comment-${index}`,
+        note: record.note ?? record.message ?? '',
+        createdAt: record.createdAt ?? record.created_at ?? new Date().toISOString(),
+        createdBy: record.author ?? record.createdBy ?? 'Admin'
+      };
+    });
+  };
+
+  const fetchComments = async (targetComplaint?: Complaint) => {
+    const complaintId = targetComplaint?.id ?? targetComplaint?.trackingId ?? complaint?.id ?? complaint?.trackingId ?? id;
+    if (!complaintId) return;
+
+    try {
+      const response = await api.get(`/api/admin/complaints/${encodeURIComponent(String(complaintId))}/comments`);
+      const source = (response.data as { data?: unknown })?.data ?? response.data;
+      const parsed = parseCommentList(source);
+      if (parsed.length > 0) {
+        setNoteHistory(parsed);
+      }
+    } catch (error) {
+      console.error('Comments load failed', error);
+      if (targetComplaint) {
+        try {
+          const fallbackNotes = await adminService.getComplaintNotes(targetComplaint);
+          setNoteHistory(fallbackNotes);
+        } catch {
+          // Keep current notes if both comments and fallback notes endpoints fail.
+        }
+      }
+    }
+  };
+
+  const fetchAdmins = async () => {
+    try {
+      const response = await api.get('/api/admin/admins');
+      const source = (response.data as { data?: unknown })?.data ?? response.data;
+      const list = Array.isArray(source) ? source : [];
+      const mapped = list
+        .map((item) => {
+          const record = item as { id?: string | number; name?: string; fullName?: string; email?: string };
+          if (!record.id && !record.name && !record.fullName) return null;
+          return {
+            id: String(record.id ?? record.email ?? record.name ?? record.fullName),
+            name: String(record.name ?? record.fullName ?? record.email ?? 'Admin')
+          };
+        })
+        .filter((item): item is { id: string; name: string } => Boolean(item));
+
+      setAdmins(mapped);
+    } catch (error) {
+      console.error('Admins load failed', error);
+      setAdmins([]);
+    }
+  };
+
+  const fetchComplaint = async (options?: { silent?: boolean }) => {
     if (!id) return;
 
-    setLoading(true);
+    if (!options?.silent) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -286,8 +376,8 @@ export function AdminComplaintDetailPage() {
       }
 
       setComplaint(data);
-      setStatus(normalizeManagedStatus(data.status));
-      setOfficer(data.assignedOfficer || '');
+      setSelectedStatus(normalizeManagedStatus(data.status));
+      setSelectedAdmin(data.assignedOfficer || '');
 
       const initialNotes = Array.isArray(data.notes)
         ? data.notes
@@ -301,14 +391,7 @@ export function AdminComplaintDetailPage() {
           : [];
       setNoteHistory(initialNotes);
 
-      try {
-        const fetchedNotes = await adminService.getComplaintNotes(data);
-        if (fetchedNotes.length > 0) {
-          setNoteHistory(fetchedNotes);
-        }
-      } catch {
-        // Keep inline notes fallback if dedicated notes endpoint is unavailable.
-      }
+      await fetchComments(data);
     } catch (err) {
       console.error('API ERROR:', err);
       const apiError = toApiError(err);
@@ -316,7 +399,9 @@ export function AdminComplaintDetailPage() {
       setComplaint(null);
       toast.error('Failed to load complaint', { description: apiError.message });
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -325,86 +410,72 @@ export function AdminComplaintDetailPage() {
     void fetchComplaint();
   }, [id]);
 
-  const updateStatus = async () => {
-    if (!complaint || !status || updating) return;
+  useEffect(() => {
+    void fetchAdmins();
+  }, []);
 
-    setUpdating(true);
+  const handleStatusSave = async () => {
+    if (!complaint || !selectedStatus || savingStatus) return;
+
+    setSavingStatus(true);
     try {
       await api.put(`/api/admin/complaints/${encodeURIComponent(String(complaint.id ?? complaint.trackingId))}/status`, {
-        status
+        status: selectedStatus
       });
 
       toast.success('Status updated');
-      await fetchComplaint();
+      await fetchComplaint({ silent: true });
     } catch (err) {
-      console.error(err);
-      toast.error('Update failed');
+      console.error('Status update failed', err);
+      toast.error('Failed to update');
     } finally {
-      setUpdating(false);
+      setSavingStatus(false);
     }
   };
 
-  const handleAssignOfficer = async () => {
-    if (!complaint || !officer.trim() || updating) return;
+  const assignOfficer = async () => {
+    if (!complaint || !selectedAdmin || assigningOfficer) return;
 
-    const previousOfficer = complaint.assignedOfficer ?? '';
-    setComplaint((prev) => (prev ? { ...prev, assignedOfficer: officer } : null));
-    setUpdating(true);
+    setAssigningOfficer(true);
 
     try {
-      const updated = await adminService.assignComplaintOfficer(complaint, officer.trim());
-      setComplaint(updated);
+      await api.put(`/api/admin/complaints/${encodeURIComponent(String(complaint.id ?? complaint.trackingId))}/assign`, {
+        admin: selectedAdmin
+      });
+
       toast.success('Officer assigned');
+      await fetchComplaint({ silent: true });
     } catch (err) {
-      setComplaint((prev) => (prev ? { ...prev, assignedOfficer: previousOfficer } : null));
       const apiError = toApiError(err);
       toast.error('Failed to assign officer', { description: apiError.message });
     } finally {
-      setUpdating(false);
+      setAssigningOfficer(false);
     }
   };
 
-  const handleAddNotes = async () => {
-    if (!complaint || !noteInput.trim() || updating) return;
+  const addNote = async () => {
+    if (!complaint || !noteInput.trim() || addingNote) return;
 
-    setUpdating(true);
+    setAddingNote(true);
     try {
-      const optimisticNote: ComplaintNote = {
-        id: `temp-${Date.now()}`,
-        note: noteInput.trim(),
-        createdAt: new Date().toISOString(),
-        createdBy: 'Admin'
-      };
-      setNoteHistory((current) => [optimisticNote, ...current]);
+      const note = noteInput.trim();
+      await api.post(`/api/admin/complaints/${encodeURIComponent(String(complaint.id ?? complaint.trackingId))}/comments`, {
+        note
+      });
+
       setNoteInput('');
-
-      const updated = await adminService.addComplaintNote(complaint, optimisticNote.note);
-      if (updated) {
-        setComplaint(updated);
-
-        const notesAfterUpdate = Array.isArray(updated.notes)
-          ? updated.notes
-          : Array.isArray(updated.comments)
-            ? updated.comments.map((comment, index) => ({
-                id: comment.id ?? `comment-${index}`,
-                note: comment.message,
-                createdAt: comment.createdAt,
-                createdBy: comment.author
-              }))
-            : noteHistory;
-        setNoteHistory(notesAfterUpdate);
-      }
+      await fetchComments();
+      await fetchComplaint({ silent: true });
       toast.success('Note added');
     } catch (err) {
       const apiError = toApiError(err);
       toast.error('Failed to add note', { description: apiError.message });
-      setNoteInput((current) => current || '');
     } finally {
-      setUpdating(false);
+      setAddingNote(false);
     }
   };
 
-  const currentStatusIndex = status ? TIMELINE_STEPS.indexOf(status as ManagedComplaintStatus) : -1;
+  const currentStatusIndex = statusToTimelineIndex(selectedStatus || complaint?.status);
 
   if (loading) {
     return (
@@ -444,7 +515,7 @@ export function AdminComplaintDetailPage() {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
       >
         <Button
           variant="outline"
@@ -454,18 +525,18 @@ export function AdminComplaintDetailPage() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <h1 className="text-3xl font-bold text-slate-100">{complaint.title}</h1>
+        <h1 className="text-xl font-bold text-slate-100 md:text-3xl">{complaint.title}</h1>
         <div className="w-24" /> {/* Spacer */}
       </motion.div>
 
       {/* Main Content */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {/* Left Column - Complaint Details */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="lg:col-span-2 space-y-6"
+          className="space-y-6 md:col-span-2"
         >
           {/* Details Card */}
           <div className={`rounded-2xl border border-slate-700/50 bg-gradient-to-br ${STATUS_COLORS[complaint.status] || STATUS_COLORS['UNDER_REVIEW']} p-6 backdrop-blur-sm`}>
@@ -566,6 +637,55 @@ export function AdminComplaintDetailPage() {
               <p className="text-sm text-slate-200 leading-relaxed">{complaint.investigationNotes}</p>
             </div>
           )}
+
+          {/* Timeline Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-6 backdrop-blur-sm"
+          >
+            <h3 className="text-lg font-semibold text-slate-100">Resolution Timeline</h3>
+            <div className="mt-6 overflow-x-auto">
+              <div className="min-w-[560px]">
+                <div className="relative flex items-center">
+                  {PROGRESS_STEPS.map((step, index) => {
+                    const Icon = step.icon;
+                    const isComplete = currentStatusIndex >= index;
+
+                    return (
+                      <div key={step.key} className="flex flex-1 items-center">
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.1 * index }}
+                          className={`flex h-10 w-10 items-center justify-center rounded-full border ${
+                            isComplete ? 'border-emerald-300 bg-emerald-500/30 text-emerald-100' : 'border-slate-600 bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </motion.div>
+                        {index < PROGRESS_STEPS.length - 1 && (
+                          <div className="mx-2 h-1 flex-1 rounded-full bg-slate-700">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: isComplete ? '100%' : '0%' }}
+                              className="h-full rounded-full bg-emerald-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[11px] uppercase tracking-[0.1em] text-slate-400">
+                  {PROGRESS_STEPS.map((step) => (
+                    <p key={step.key}>{step.label}</p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </motion.div>
 
         {/* Right Column - Admin Panel & Evidence */}
@@ -586,9 +706,9 @@ export function AdminComplaintDetailPage() {
               </label>
               <select
                 aria-label="Change complaint status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                disabled={updating}
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(normalizeManagedStatus(e.target.value as Complaint['status']))}
+                disabled={savingStatus}
                 className="w-full rounded-lg bg-slate-700/50 border border-slate-600 px-3 py-2 text-sm text-slate-200 transition-colors hover:border-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {(['UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'] as const).map((optionStatus) => (
@@ -596,11 +716,11 @@ export function AdminComplaintDetailPage() {
                 ))}
               </select>
               <Button
-                onClick={() => void updateStatus()}
-                disabled={updating || !complaint || status === normalizeManagedStatus(complaint.status)}
+                onClick={() => void handleStatusSave()}
+                disabled={savingStatus || !complaint || selectedStatus === normalizeManagedStatus(complaint.status)}
                 className="w-full mt-2 bg-blue-600 hover:bg-blue-700"
               >
-                Save
+                {savingStatus ? 'Saving...' : 'Save'}
               </Button>
             </div>
 
@@ -609,19 +729,27 @@ export function AdminComplaintDetailPage() {
               <label className="block text-xs uppercase tracking-[0.12em] text-slate-400 mb-2">
                 Assign Officer
               </label>
-              <Input
-                placeholder="Officer name..."
-                value={officer}
-                onChange={(e) => setOfficer(e.target.value)}
-                className="bg-slate-700/50 border-slate-600"
-              />
+              <select
+                aria-label="Assign officer"
+                value={selectedAdmin}
+                onChange={(e) => setSelectedAdmin(e.target.value)}
+                disabled={assigningOfficer}
+                className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  selectedAdmin ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-600 bg-slate-700/50'
+                }`}
+              >
+                <option value="">Select officer</option>
+                {admins.map((admin) => (
+                  <option key={admin.id} value={admin.id}>{admin.name}</option>
+                ))}
+              </select>
               <Button
-                onClick={handleAssignOfficer}
-                disabled={!officer || updating}
+                onClick={() => void assignOfficer()}
+                disabled={!selectedAdmin || assigningOfficer}
                 className="w-full mt-2 bg-green-600 hover:bg-green-700"
               >
                 <User className="mr-2 h-4 w-4" />
-                Assign
+                {assigningOfficer ? 'Assigning...' : 'Assign'}
               </Button>
             </div>
 
@@ -637,12 +765,12 @@ export function AdminComplaintDetailPage() {
                 className="bg-slate-700/50 border-slate-600 min-h-24 resize-none"
               />
               <Button
-                onClick={handleAddNotes}
-                disabled={!noteInput.trim() || updating}
+                onClick={() => void addNote()}
+                disabled={!noteInput.trim() || addingNote}
                 className="w-full mt-2 bg-purple-600 hover:bg-purple-700"
               >
                 <Send className="mr-2 h-4 w-4" />
-                Add Note
+                {addingNote ? 'Saving Note...' : 'Add Note'}
               </Button>
 
               <div className="mt-4 space-y-2 max-h-48 overflow-auto pr-1">
@@ -760,51 +888,6 @@ export function AdminComplaintDetailPage() {
           </div>
         </motion.div>
       </div>
-
-      {/* Timeline Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-8 backdrop-blur-sm"
-      >
-        <h3 className="text-lg font-semibold text-slate-100 mb-12">Resolution Timeline</h3>
-
-        <div className="relative flex items-start">
-          {TIMELINE_STEPS.map((step, index) => (
-            <TimelineStep
-              key={step}
-              step={step}
-              index={index}
-              isActive={status === step}
-              isCompleted={currentStatusIndex >= index && currentStatusIndex !== -1}
-            />
-          ))}
-        </div>
-
-        <div className="mt-10 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 text-xs text-slate-400">
-            <p className="uppercase tracking-[0.12em]">Under Review</p>
-            <p className="mt-1 text-slate-300">{formatDateTime(complaint.underReviewAt ?? complaint.createdAt)}</p>
-          </div>
-          <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 text-xs text-slate-400">
-            <p className="uppercase tracking-[0.12em]">Under Review</p>
-            <p className="mt-1 text-slate-300">{formatDateTime(complaint.underReviewAt)}</p>
-          </div>
-          <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 text-xs text-slate-400">
-            <p className="uppercase tracking-[0.12em]">Investigating</p>
-            <p className="mt-1 text-slate-300">{formatDateTime(complaint.investigatingAt)}</p>
-          </div>
-          <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3 text-xs text-slate-400">
-            <p className="uppercase tracking-[0.12em]">Resolved/Rejected</p>
-            <p className="mt-1 text-slate-300">{formatDateTime(complaint.resolvedAt ?? complaint.rejectedAt)}</p>
-          </div>
-        </div>
-
-        <p className="text-xs text-slate-500 mt-16 text-center">
-          Current Status: <span className="text-slate-300 font-medium">{formatStatus(status || complaint.status)}</span>
-        </p>
-      </motion.div>
 
       {/* Media Preview Modal */}
       <MediaPreviewModal
