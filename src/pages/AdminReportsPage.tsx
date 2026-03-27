@@ -424,8 +424,8 @@ export function AdminReportsPage() {
       {!loading && complaints.length > 0 && (
         <div className="grid gap-5 lg:grid-cols-2">
           <ChartCard title="Complaints Trend" delay={0.3}>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="w-full">
+              <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 12 }} />
@@ -452,8 +452,8 @@ export function AdminReportsPage() {
           </ChartCard>
 
           <ChartCard title="By Category" delay={0.4}>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="w-full">
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={categoryData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="label" stroke="#94a3b8" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 12 }} />
