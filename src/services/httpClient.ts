@@ -1,5 +1,5 @@
 import axios, { AxiosError, type AxiosResponse } from 'axios';
-import API from '@/services/api';
+import API from '@/services/apiClient';
 
 const TOKEN_KEY = 'token';
 const API_URL: string =
@@ -89,13 +89,8 @@ export async function requestWithFallback<T>(requests: Array<() => Promise<Axios
 }
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response: AxiosResponse) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      clearStoredToken();
-      window.dispatchEvent(new CustomEvent('trinetra:unauthorized'));
-    }
-
     return Promise.reject(toApiError(error));
   }
 );
