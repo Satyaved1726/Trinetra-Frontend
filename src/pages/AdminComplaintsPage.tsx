@@ -24,6 +24,13 @@ type SortDirection = 'asc' | 'desc';
 const PRIORITY_OPTIONS = ['ALL', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 const PAGE_SIZE = 10;
 
+function normalizeManagedStatus(status: Complaint['status'] | undefined): ManagedComplaintStatus {
+  if (status === 'UNDER_REVIEW' || status === 'INVESTIGATING' || status === 'RESOLVED' || status === 'REJECTED') {
+    return status;
+  }
+  return 'UNDER_REVIEW';
+}
+
 function priorityVariant(priority?: ComplaintPriority) {
   if (priority === 'CRITICAL') return 'destructive';
   if (priority === 'HIGH') return 'warning';
@@ -54,20 +61,21 @@ export function AdminComplaintsPage() {
     setStatusMap(
       safeComplaints.reduce<Record<string, Complaint['status']>>((accumulator, complaint) => {
         const key = String(complaint.id ?? complaint.trackingId);
-        accumulator[key] = complaint.status === 'SUBMITTED' ? 'UNDER_REVIEW' : complaint.status ?? 'UNDER_REVIEW';
+        accumulator[key] = normalizeManagedStatus(complaint.status);
         return accumulator;
       }, {})
     );
   }, [safeComplaints]);
 
-  const updateStatus = async (id: string, status: Complaint['status']) => {
+  const updateStatus = async (id: string) => {
     try {
+      const status = normalizeManagedStatus(statusMap[id]);
       await api.put(`/api/admin/complaints/${encodeURIComponent(id)}/status`, {
         status
       });
 
-      toast.success('Status updated successfully');
       await reload({ silent: true });
+      toast.success('Status updated successfully');
       setStatusUpdatedAlert(`Status updated for ${id}`);
       window.setTimeout(() => setStatusUpdatedAlert(null), 3500);
     } catch (err) {
@@ -78,8 +86,7 @@ export function AdminComplaintsPage() {
 
   const getCurrentStatus = (complaint: Complaint) => {
     const key = String(complaint.id ?? complaint.trackingId);
-    const selected = statusMap[key] ?? complaint.status ?? 'UNDER_REVIEW';
-    return (selected === 'SUBMITTED' ? 'UNDER_REVIEW' : selected) as Complaint['status'];
+    return normalizeManagedStatus(statusMap[key] ?? complaint.status);
   };
 
   const categoryOptions = useMemo(
@@ -100,7 +107,7 @@ export function AdminComplaintsPage() {
           .join(' ')
           .toLowerCase()
           .includes(searchValue);
-      const matchesStatus = statusFilter === 'ALL' || complaint.status === statusFilter;
+      const matchesStatus = statusFilter === 'ALL' || normalizeManagedStatus(complaint.status) === statusFilter;
       const matchesCategory = categoryFilter === 'ALL' || complaint.category === categoryFilter;
       const matchesPriority = priorityFilter === 'ALL' || (complaint.priority ?? 'LOW') === priorityFilter;
       const matchesStart = !startBoundary || complaintDate >= startBoundary;
@@ -142,7 +149,10 @@ export function AdminComplaintsPage() {
   );
 
   const activeCount = filteredComplaints.filter(
-    (complaint) => complaint.status === 'UNDER_REVIEW' || complaint.status === 'INVESTIGATING'
+    (complaint) => {
+      const status = normalizeManagedStatus(complaint.status);
+      return status === 'UNDER_REVIEW' || status === 'INVESTIGATING';
+    }
   ).length;
 
   const clearFilters = () => {
@@ -368,10 +378,11 @@ export function AdminComplaintsPage() {
                                 const complaintId = complaint.id ?? complaint.trackingId;
                                 setSavingId(complaint.trackingId);
                                 const key = String(complaintId);
-                                const next = (statusMap[key] ?? complaint.status ?? 'UNDER_REVIEW') as Complaint['status'];
-
-                                await updateStatus(key, next);
-                                setSavingId(null);
+                                try {
+                                  await updateStatus(key);
+                                } finally {
+                                  setSavingId(null);
+                                }
                               })();
                             }}
                           >

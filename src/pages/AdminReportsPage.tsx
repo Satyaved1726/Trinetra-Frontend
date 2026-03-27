@@ -41,7 +41,7 @@ import type { Complaint } from '@/types/complaint';
 
 const ITEMS_PER_PAGE = 10;
 const CATEGORIES = ['HR', 'Finance', 'Operations', 'IT', 'Compliance', 'Other'];
-const STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'];
+const STATUSES = ['UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'];
 
 interface FilterState {
   fromDate: string;

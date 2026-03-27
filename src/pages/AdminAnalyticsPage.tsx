@@ -438,8 +438,8 @@ export function AdminAnalyticsPage() {
                 hasData={complaintsOverTime.length > 0}
               >
                 {complaintsOverTime.length > 0 ? (
-                  <div className="w-full">
-                    <ResponsiveContainer width="100%" height={300}>
+                  <div className="w-full h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={complaintsOverTime}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                         <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 12 }} />
@@ -477,8 +477,8 @@ export function AdminAnalyticsPage() {
                 hasData={complaintsByCategory.length > 0}
               >
                 {complaintsByCategory.length > 0 ? (
-                  <div className="w-full">
-                    <ResponsiveContainer width="100%" height={300}>
+                  <div className="w-full h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={complaintsByCategory}
@@ -519,8 +519,8 @@ export function AdminAnalyticsPage() {
                 hasData={complaintsByStatus.length > 0}
               >
                 {complaintsByStatus.length > 0 ? (
-                  <div className="w-full">
-                    <ResponsiveContainer width="100%" height={300}>
+                  <div className="w-full h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={complaintsByStatus}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                         <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 12 }} />

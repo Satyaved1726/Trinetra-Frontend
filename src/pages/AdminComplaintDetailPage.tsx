@@ -32,6 +32,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Other': 'bg-slate-500/20 text-slate-300 border-slate-400/20'
 };
 
+function normalizeManagedStatus(status: Complaint['status'] | undefined): ManagedComplaintStatus {
+  if (status === 'UNDER_REVIEW' || status === 'INVESTIGATING' || status === 'RESOLVED' || status === 'REJECTED') {
+    return status;
+  }
+  return 'UNDER_REVIEW';
+}
+
 function inferMediaType(fileUrl: string, fileType?: string): 'image' | 'video' | 'other' {
   const value = (fileType ?? fileUrl).toLowerCase();
   if (value.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fileUrl)) return 'image';
@@ -279,7 +286,7 @@ export function AdminComplaintDetailPage() {
       }
 
       setComplaint(data);
-      setStatus(data.status === 'SUBMITTED' ? 'UNDER_REVIEW' : (data.status ?? 'UNDER_REVIEW'));
+      setStatus(normalizeManagedStatus(data.status));
       setOfficer(data.assignedOfficer || '');
 
       const initialNotes = Array.isArray(data.notes)
@@ -314,6 +321,7 @@ export function AdminComplaintDetailPage() {
   };
 
   useEffect(() => {
+    if (!id) return;
     void fetchComplaint();
   }, [id]);
 
@@ -487,7 +495,7 @@ export function AdminComplaintDetailPage() {
                 <div>
                   <p className="text-xs uppercase tracking-[0.12em] text-slate-400 mb-2">Status</p>
                   <Badge className="bg-blue-500/20 border-blue-400/20 text-blue-300">
-                    {formatStatus(complaint.status)}
+                    {formatStatus(normalizeManagedStatus(complaint.status))}
                   </Badge>
                 </div>
 
@@ -589,7 +597,7 @@ export function AdminComplaintDetailPage() {
               </select>
               <Button
                 onClick={() => void updateStatus()}
-                disabled={updating || !complaint || status === complaint.status}
+                disabled={updating || !complaint || status === normalizeManagedStatus(complaint.status)}
                 className="w-full mt-2 bg-blue-600 hover:bg-blue-700"
               >
                 Save
