@@ -247,7 +247,7 @@ export function AdminComplaintDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
-  const [status, setStatus] = useState<Complaint['status']>('SUBMITTED');
+  const [status, setStatus] = useState<Complaint['status']>('UNKNOWN');
   const [noteInput, setNoteInput] = useState('');
   const [officer, setOfficer] = useState('');
   const [noteHistory, setNoteHistory] = useState<ComplaintNote[]>([]);
@@ -268,7 +268,7 @@ export function AdminComplaintDetailPage() {
 
     try {
       const res = await api.get(`/api/admin/complaints/${id}`);
-      const data = ((res.data as { data?: unknown })?.data ?? res.data) as Complaint | null;
+      const data = (res.data as { data?: Complaint | null })?.data ?? null;
 
       if (!data) {
         setError('Complaint not found');
@@ -277,7 +277,7 @@ export function AdminComplaintDetailPage() {
       }
 
       setComplaint(data);
-      setStatus(data.status || 'SUBMITTED');
+      setStatus(data.status ?? 'UNKNOWN');
       setOfficer(data.assignedOfficer || '');
 
       const initialNotes = Array.isArray(data.notes)

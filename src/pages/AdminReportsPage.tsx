@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/table';
 import { adminQueryKeys } from '@/hooks/useAdminDashboardData';
 import type { DashboardOutletContext } from '@/layouts/DashboardLayout';
+import { API_URL } from '@/services/httpClient';
 import { adminService, type ReportQuery } from '@/services/adminService';
 import { toApiError } from '@/services/httpClient';
 import { formatDate, formatStatus, buildComplaintStats } from '@/utils/formatters';
@@ -228,12 +229,14 @@ export function AdminReportsPage() {
   const handleExportCSV = async () => {
     setExporting(true);
     try {
-      await adminService.exportReportsCSV({
-        from: filters.fromDate,
-        to: filters.toDate,
-        category: filters.category || undefined,
-        status: filters.status || undefined
-      });
+      const query = new URLSearchParams();
+      if (filters.fromDate) query.set('from', filters.fromDate);
+      if (filters.toDate) query.set('to', filters.toDate);
+      if (filters.category) query.set('category', filters.category);
+      if (filters.status) query.set('status', filters.status);
+
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      window.open(`${API_URL}/api/admin/reports/export/csv${suffix}`, '_blank', 'noopener,noreferrer');
       toast.success('CSV exported successfully');
     } catch (err) {
       const apiError = toApiError(err);

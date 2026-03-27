@@ -14,7 +14,7 @@ import { apiClient as api } from '@/services/httpClient';
 import type { Complaint, ComplaintPriority, ManagedComplaintStatus } from '@/types/complaint';
 import { formatDate, formatStatus } from '@/utils/formatters';
 
-const statusOptions: Array<'SUBMITTED' | ManagedComplaintStatus> = ['SUBMITTED', 'UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'];
+const statusOptions: ManagedComplaintStatus[] = ['UNDER_REVIEW', 'INVESTIGATING', 'RESOLVED', 'REJECTED'];
 const complaintFilters = ['ALL', 'SUBMITTED', ...statusOptions] as const;
 
 type ComplaintFilter = (typeof complaintFilters)[number];
@@ -54,7 +54,7 @@ export function AdminComplaintsPage() {
     setStatusMap(
       safeComplaints.reduce<Record<string, Complaint['status']>>((accumulator, complaint) => {
         const key = String(complaint.id ?? complaint.trackingId);
-        accumulator[key] = complaint.status || 'SUBMITTED';
+        accumulator[key] = complaint.status ?? 'UNKNOWN';
         return accumulator;
       }, {})
     );
@@ -74,6 +74,15 @@ export function AdminComplaintsPage() {
       console.error(err);
       toast.error('Update failed');
     }
+  };
+
+  const getCurrentStatus = (complaint: Complaint) => {
+    const key = String(complaint.id ?? complaint.trackingId);
+    const selected = statusMap[key] ?? complaint.status;
+    if (!selected || selected === 'SUBMITTED') {
+      return '';
+    }
+    return selected;
   };
 
   const categoryOptions = useMemo(
@@ -311,7 +320,7 @@ export function AdminComplaintsPage() {
                       <td className="hidden whitespace-nowrap px-4 py-3 text-muted-foreground md:table-cell">{complaint.category}</td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <Badge variant={priorityVariant(complaint.priority)} className="text-[10px]">
-                          {complaint.priority ?? 'LOW'}
+                          {complaint.priority || 'LOW'}
                         </Badge>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
@@ -322,7 +331,7 @@ export function AdminComplaintsPage() {
                       <td className="whitespace-nowrap px-4 py-3">
                         <select
                           aria-label={`Select next status for ${complaint.trackingId}`}
-                          value={statusMap[String(complaint.id ?? complaint.trackingId)] || complaint.status}
+                          value={getCurrentStatus(complaint)}
                           onClick={(event) => event.stopPropagation()}
                           onChange={(event) =>
                             setStatusMap((current) => ({
@@ -332,6 +341,7 @@ export function AdminComplaintsPage() {
                           }
                           className="h-9 min-w-[150px] rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-ring transition"
                         >
+                          <option value="">UNKNOWN</option>
                           {statusOptions.map((status) => (
                             <option key={status} value={status}>
                               {formatStatus(status)}
@@ -355,14 +365,20 @@ export function AdminComplaintsPage() {
                             size="sm"
                             variant="outline"
                             className="h-8 text-xs"
-                            disabled={savingId === complaint.trackingId}
+                            disabled={savingId === complaint.trackingId || !getCurrentStatus(complaint)}
                             onClick={(event) => {
                               event.stopPropagation();
                               void (async () => {
                                 const complaintId = complaint.id ?? complaint.trackingId;
                                 setSavingId(complaint.trackingId);
                                 const key = String(complaintId);
-                                const next = statusMap[key] || complaint.status;
+                                const next = statusMap[key] ?? complaint.status;
+
+                                if (!next || next === 'SUBMITTED') {
+                                  toast.error('Please choose a valid status');
+                                  setSavingId(null);
+                                  return;
+                                }
 
                                 await updateStatus(key, next);
                                 setSavingId(null);

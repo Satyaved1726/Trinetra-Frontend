@@ -370,8 +370,8 @@ export function AdminAnalyticsPage() {
                 hasData={complaintsOverTime.length > 0}
               >
                 {complaintsOverTime.length > 0 ? (
-                  <div className="h-72 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="w-full">
+                    <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={complaintsOverTime}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                         <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 12 }} />
@@ -409,8 +409,8 @@ export function AdminAnalyticsPage() {
                 hasData={complaintsByCategory.length > 0}
               >
                 {complaintsByCategory.length > 0 ? (
-                  <div className="h-72 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="w-full">
+                    <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
                           data={complaintsByCategory}
@@ -451,8 +451,8 @@ export function AdminAnalyticsPage() {
                 hasData={complaintsByStatus.length > 0}
               >
                 {complaintsByStatus.length > 0 ? (
-                  <div className="h-72 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="w-full">
+                    <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={complaintsByStatus}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                         <XAxis dataKey="label" stroke="#94a3b8" tick={{ fontSize: 12 }} />
@@ -486,15 +486,6 @@ export function AdminAnalyticsPage() {
         </>
       )}
 
-      {/* Footer Info */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.9 }}
-        className="rounded-lg border border-slate-700/30 bg-slate-800/20 px-4 py-3 text-xs text-slate-500 text-center"
-      >
-        <p>Data updates automatically every 10 seconds • Last refreshed: {new Date().toLocaleTimeString()}</p>
-      </motion.div>
     </div>
   );
 }
