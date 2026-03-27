@@ -377,7 +377,7 @@ export function AdminComplaintDetailPage() {
 
       setComplaint(data);
       setSelectedStatus(normalizeManagedStatus(data.status));
-      setSelectedAdmin(data.assignedOfficer || '');
+      setSelectedAdmin(String((data as Complaint & { assignedOfficerId?: string | number }).assignedOfficerId ?? ''));
 
       const initialNotes = Array.isArray(data.notes)
         ? data.notes
@@ -440,10 +440,10 @@ export function AdminComplaintDetailPage() {
 
     try {
       await api.put(`/api/admin/complaints/${encodeURIComponent(String(complaint.id ?? complaint.trackingId))}/assign`, {
-        admin: selectedAdmin
+        adminId: selectedAdmin
       });
 
-      toast.success('Officer assigned');
+      toast.success('Assigned successfully');
       await fetchComplaint({ silent: true });
     } catch (err) {
       const apiError = toApiError(err);
